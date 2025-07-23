@@ -10,7 +10,7 @@ import random
 
 from sklearn.metrics import roc_auc_score
 
-from my_modules.models import *
+from my_modules.models.classifier_models import *
 from my_modules.scripts.model_metrics import score_model
 from my_modules.scripts.helper_functions import set_seed
 from my_modules.scripts.dataset import NSCLCDataset
