@@ -157,18 +157,18 @@ def main():
     models = [ResNet18NPlaned(train_data.shape, start_width=64, n_classes=1)]
 
     # InceptionResNetV2 Feature Extractor (BigCoMET)
-    feature_extractor = AdaptedInputInceptionResNetV2(train_data.shape, num_classes=1000, pretrained=False)
-    classifier = CometClassifierWithBinaryOutput
-    models.append(FeatureExtractorToClassifier(train_data.shape,
-                                               feature_extractor=feature_extractor,
-                                               classifier=classifier, layer='inceptionresnetv2.conv2d_7b'))
+    # feature_extractor = AdaptedInputInceptionResNetV2(train_data.shape, num_classes=1000, pretrained=False)
+    # classifier = CometClassifierWithBinaryOutput
+    # models.append(FeatureExtractorToClassifier(train_data.shape,
+    #                                            feature_extractor=feature_extractor,
+    #                                            classifier=classifier, layer='inceptionresnetv2.conv2d_7b'))
 
     # Xception Feature Extractor
-    feature_extractor = AdaptedInputXception(train_data.shape, num_classes=1000, pretrained=False)
-    classifier = torch.nn.Sequential(torch.nn.Linear(2048, 1), torch.nn.Sigmoid())
-    models.append(FeatureExtractorToClassifier(train_data.shape,
-                                               feature_extractor=feature_extractor,
-                                               classifier=classifier, layer='xception.conv4'))
+    # feature_extractor = AdaptedInputXception(train_data.shape, num_classes=1000, pretrained=False)
+    # classifier = torch.nn.Sequential(torch.nn.Linear(2048, 1), torch.nn.Sigmoid())
+    # models.append(FeatureExtractorToClassifier(train_data.shape,
+    #                                            feature_extractor=feature_extractor,
+    #                                            classifier=classifier, layer='xception.conv4'))
 
     # Basic CNNs
     models[len(models):] = [CNNet(train_data.shape),
