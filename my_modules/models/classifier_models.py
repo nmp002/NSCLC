@@ -2,13 +2,13 @@ from typing import Iterator, Tuple
 
 import numpy as np
 import torch
-from pretrainedmodels import inceptionresnetv2, xception
+# from pretrainedmodels import inceptionresnetv2, xception
 from torch import nn
 import warnings
 
 from torch.nn import Parameter
 
-import blocks
+from my_modules.models import blocks
 
 
 # region MLPs
