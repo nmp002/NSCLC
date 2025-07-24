@@ -24,7 +24,7 @@ echo $SLURM_JOB_ID
 
 cd $SLURM_SUBMIT_DIR || exit
 # input files needed for job
-files=/home/nmp002/data/
+files=/home/nmp002/data/NSCLC_Data_for_ML
 
 echo "Copying files..."
 mkdir /scratch/$SLURM_JOB_ID
