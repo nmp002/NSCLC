@@ -34,6 +34,8 @@ if [ -d /scratch/$SLURM_JOB_ID ]; then
 else
   echo "Creating directory."
   mkdir /scratch/$SLURM_JOB_ID
+fi
+
 echo "Copying files..."
 rsync -avq $files /scratch/$SLURM_JOB_ID
 rsync -avq $SLURM_SUBMIT_DIR/*.py /scratch/$SLURM_JOB_ID
