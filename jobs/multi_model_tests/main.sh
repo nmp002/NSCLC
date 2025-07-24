@@ -29,7 +29,11 @@ cd $SLURM_SUBMIT_DIR || exit
 files=/home/nmp002/data/NSCLC_Data_for_ML
 
 echo "Copying files..."
-mkdir /scratch/$SLURM_JOB_ID
+if [ -d /scratch/$SLURM_JOB_ID ]; then
+  echo "Directory exists."
+else
+  echo "Creating directory."
+  mkdir /scratch/$SLURM_JOB_ID
 rsync -avq $files /scratch/$SLURM_JOB_ID
 rsync -avq $SLURM_SUBMIT_DIR/*.py /scratch/$SLURM_JOB_ID
 rsync -avq /home/nmp002/NSCLC/my_modules /scratch/$SLURM_JOB_ID
