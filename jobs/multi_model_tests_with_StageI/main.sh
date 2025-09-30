@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #SBATCH --job-name=multi_model_tests_with_StageI
-#SBATCH --partition=agpu06
+#SBATCH --partition=agpu72
 #SBATCH --output=nsclc_main.txt
 #SBATCH --error=nsclc_main.err
 #SBATCH --mail-type=ALL
