@@ -891,4 +891,18 @@ TODO: Update doc
         for ii in range(n):
             index = np.random.randint(0, len(self))
             self.show(index, stack_as_rgb=stack_as_rgb, cmap=cmap)
+
+    def get_patient_name(self, pt_index):
+        """
+        Returns the patient name corresponding to the given index.
+        If pt_index is augmented, handles the subset index appropriately.
+        """
+        if self.augment_patients:
+            pt_index = int(pt_index // 5)
+        # Use the 'Slide Name' column if it exists, otherwise fall back to Subject ID
+        if 'Slide Name' in self.features['ID'].columns:
+            return self.features['ID'].at[pt_index, 'Slide Name']
+        else:
+            return self.features['ID'].at[pt_index, 'Subject']
+
     # endregion
