@@ -20,6 +20,7 @@ from my_modules.scripts.dataset import NSCLCDataset
 def main():
     # Set random seed for reproducibility
     set_seed(42)
+    random.seed(42)
 
     # Set up multiprocessing
     print(f'Num cores: {mp.cpu_count()}')
@@ -46,7 +47,7 @@ def main():
     eval_test_data.normalize_method = 'preset'
     eval_test_data.to(device)
 
-    # Random split datasets
+    # Random split datasets (start from all patients)
     subsampler = torch.utils.data.sampler.SubsetRandomSampler(range(train_data.patient_count))
     idx = [i for i in subsampler]
 
@@ -61,92 +62,156 @@ def main():
     for ix in idx_for_removal:
         idx.remove(ix)
 
-    # --- NEW: Stage I handling ---
+    # --- NEW: Stage I handling (Method 2: name endswith '_StageI' -> Stage I) ---
     stageI_pts = []
     stageII_pts = []
+    patient_names = {}  # map idx -> name for printing and bookkeeping
 
     for i in idx:
-        patient_name = train_data.get_patient_name(i)  # returns e.g., "S0007_StageI" or "V0098"
-        if patient_name.endswith('_StageI'):
+        # use dataset helper to get the patient name (Slide Name or Subject)
+        name = train_data.get_patient_name(i)
+        patient_names[i] = name
+        # Detect Stage I by suffix
+        if isinstance(name, str) and name.endswith('_StageI'):
             stageI_pts.append(i)
-            # Strip '_StageI' for label lookup
-            train_data.labels[i] = patient_name.split('_')[0]  # adjust if your NSCLCDataset uses another label storage
         else:
             stageII_pts.append(i)
 
-    # Get labels for Stage II patients only
-    labels = [train_data.get_patient_label(i).item() for i in stageII_pts]
+    # sanity prints
+    print(f'Found {len(stageII_pts)} Stage II patients and {len(stageI_pts)} Stage I patients.')
+    # Print the actual patient names for verification
+    print('Stage I patient names (to be used as TEST set):')
+    for i in stageI_pts:
+        print(f'  - idx {i}: {patient_names[i]}')
+    print('Stage II patient names (to be split into TRAIN / EVAL):')
+    for i in stageII_pts:
+        print(f'  - idx {i}: {patient_names[i]}')
+
+    # If there are no Stage II patients, raise
+    if len(stageII_pts) == 0:
+        raise RuntimeError('No Stage II patients detected to split into train/eval.')
+
+    # Get labels for Stage II patients only (0 = Metastatic, 1 = Non-metastatic per dataset definition)
+    labels_stageII = [train_data.get_patient_label(i).item() for i in stageII_pts]
     image_counts = [0, 0]
-    for i, label in zip(stageII_pts, labels):
+    for i, label in zip(stageII_pts, labels_stageII):
         image_counts[int(label)] += len(train_data.get_patient_subset(i))
 
-    # Separate 0 and 1 labels (still shuffled)
-    shuffled_zeros = [i for i, l in zip(stageII_pts, labels) if l == 0]
-    shuffled_ones = [i for i, l in zip(stageII_pts, labels) if l == 1]
-    print(f'Total non-metastatic Stage II patients: {len(shuffled_ones)} with {image_counts[1]} images')
-    print(f'Total metastatic Stage II patients: {len(shuffled_zeros)} with {image_counts[0]} images')
+    # Separate by label (still keep them shuffled deterministically)
+    paired = list(zip(stageII_pts, labels_stageII))
+    random.shuffle(paired)  # shuffle the Stage II patients before stratified split
+    # split back into class-specific lists (preserve the shuffle order within each class)
+    zeros = [i for i, l in paired if int(l) == 0]  # metastatic
+    ones = [i for i, l in paired if int(l) == 1]   # non-metastatic
 
-    # Split train, eval, and test sets
-    train_pts = shuffled_zeros[3:-1] + shuffled_ones[3:-1]
-    eval_pts = shuffled_zeros[0:3] + shuffled_ones[0:3]
-    # Test set includes Stage I patients + last Stage II of each class
-    test_pts = stageI_pts + [shuffled_zeros[-1], shuffled_ones[-1]]
+    print(f'Stage II metastatic (label=0): {len(zeros)} patients')
+    print(f'Stage II non-metastatic (label=1): {len(ones)} patients')
 
-    # Flatten indices for DataLoaders
+    # Desired Stage II train/eval sizes (you specified: split 25 StageII -> 13 / 12)
+    total_stageII = len(stageII_pts)
+    desired_train_stageII = int(round(total_stageII * 13 / 25)) if total_stageII == 25 else None
+    # If the user specifically expects 13/12 when total_stageII == 25, enforce it; otherwise default to same ratio as original:
+    if desired_train_stageII is None:
+        # fallback to original ratio from your script:
+        # original used eval first 3 from each class then rest as train (not directly transferable),
+        # simpler fallback: use 0.52 train fraction ~ 13/25
+        desired_train_stageII = int(round(total_stageII * 13 / 25))
+    desired_train = desired_train_stageII
+    desired_eval = total_stageII - desired_train
+
+    # To keep class balance, compute class-wise train counts using proportional allocation with rounding by remainder
+    class_lists = [zeros, ones]
+    class_train_counts = []
+    remainders = []
+    for cl in class_lists:
+        exact = (len(cl) * desired_train) / total_stageII
+        floor_count = int(np.floor(exact))
+        class_train_counts.append(floor_count)
+        remainders.append((exact - floor_count, cl))  # store remainder and corresponding list
+
+    # Distribute the remaining train slots according to largest fractional remainder
+    current_sum = sum(class_train_counts)
+    remaining_to_assign = desired_train - current_sum
+    # sort remainders descending by fractional part
+    remainders_sorted = sorted(enumerate([r[0] for r in remainders]), key=lambda x: x[1], reverse=True)
+    idx_order = [r[0] for r in remainders_sorted]
+    k = 0
+    while remaining_to_assign > 0:
+        class_train_counts[idx_order[k % len(idx_order)]] += 1
+        remaining_to_assign -= 1
+        k += 1
+
+    # Now actually pick first N from each shuffled class list as train, remainder as eval
+    train_pts = []
+    eval_pts = []
+    for cl_list, n_train in zip(class_lists, class_train_counts):
+        train_from_class = cl_list[:n_train]
+        eval_from_class = cl_list[n_train:]
+        train_pts.extend(train_from_class)
+        eval_pts.extend(eval_from_class)
+
+    # Double-check totals
+    assert len(train_pts) + len(eval_pts) == total_stageII
+    assert len(train_pts) == desired_train
+    assert len(eval_pts) == desired_eval
+
+    # Test set is ALL Stage I patients (explicit exclusion from training) - user requested this.
+    test_pts = list(stageI_pts)  # copy
+    # If you still want to include any Stage II holdouts in the test set (you previously had last-of-class),
+    # the user requested *all Stage I* to be test, and Stage II split into train/eval, so we DO NOT add StageII patients to test.
+
+    # Print the chosen splits (names)
+    print('\nFINAL SPLITS (patient indices and names):')
+    print(f'  TRAIN (n={len(train_pts)})')
+    for i in train_pts:
+        print(f'    idx {i}: {patient_names[i]} (label={train_data.get_patient_label(i).item()})')
+    print(f'  EVAL (n={len(eval_pts)})')
+    for i in eval_pts:
+        print(f'    idx {i}: {patient_names[i]} (label={train_data.get_patient_label(i).item()})')
+    print(f'  TEST (Stage I) (n={len(test_pts)})')
+    for i in test_pts:
+        print(f'    idx {i}: {patient_names[i]} (label={train_data.get_patient_label(i).item()})')
+
+    # Flatten indices for DataLoaders (these are image indices, not patient indices)
     train_idx = [train_data.get_patient_subset(i) for i in train_pts]
     train_idx = [im for i in train_idx for im in i]
     random.shuffle(train_idx)
-    train_image_counts = [0, 0]
-    for idx_i in train_pts:
-        label = train_data.get_patient_label(idx_i)
-        train_image_counts[int(label)] += len(train_data.get_patient_subset(idx_i))
 
     eval_idx = [eval_test_data.get_patient_subset(i) for i in eval_pts]
     eval_idx = [im for i in eval_idx for im in i]
     random.shuffle(eval_idx)
-    eval_image_counts = [0, 0]
-    for idx_i in eval_pts:
-        label = eval_test_data.get_patient_label(idx_i)
-        eval_image_counts[int(label)] += len(eval_test_data.get_patient_subset(idx_i))
 
     test_idx = [eval_test_data.get_patient_subset(i) for i in test_pts]
     test_idx = [im for i in test_idx for im in i]
     random.shuffle(test_idx)
-    test_image_counts = [0, 0]
-    for idx_i in test_pts:
-        label = eval_test_data.get_patient_label(idx_i)
-        test_image_counts[int(label)] += len(eval_test_data.get_patient_subset(idx_i))
 
     comb_pts = eval_pts + test_pts
     comb_idx = [eval_test_data.get_patient_subset(i) for i in comb_pts]
     comb_idx = [im for i in comb_idx for im in i]
     random.shuffle(comb_idx)
-    comb_image_counts = [0, 0]
-    for idx_i in comb_pts:
-        label = eval_test_data.get_patient_label(idx_i)
-        comb_image_counts[int(label)] += len(eval_test_data.get_patient_subset(idx_i))
 
-    print(f'Training set\n'
-          f'____________\n'
-          f'Non-metastatic: {len(shuffled_ones[3:-1])} with {train_image_counts[1]} images.\n'
-          f'Metastatic: {len(shuffled_zeros[3:-1])} with {train_image_counts[0]} images.\n'
-          f'Total: {len(train_pts)} Patients with {len(train_idx)} images.\n')
+    # Image count summaries (optional, mirror previous print style)
+    train_image_counts = [0, 0]
+    for pt in train_pts:
+        label = int(train_data.get_patient_label(pt).item())
+        train_image_counts[label] += len(train_data.get_patient_subset(pt))
 
-    print(f'Evaluation set\n'
-          f'______________\n'
-          f'Non-metastatic: {len(shuffled_ones[0:3])} with {eval_image_counts[1]} images.\n'
-          f'Metastatic: {len(shuffled_zeros[0:3])} with {eval_image_counts[0]} images.\n'
-          f'Total: {len(eval_pts)} Patients with {len(eval_idx)} images.\n')
+    eval_image_counts = [0, 0]
+    for pt in eval_pts:
+        label = int(eval_test_data.get_patient_label(pt).item())
+        eval_image_counts[label] += len(eval_test_data.get_patient_subset(pt))
 
-    print(f'Testing set\n'
-          f'____________\n'
-          f'Non-metastatic: {len([i for i in test_pts if train_data.get_patient_label(i).item()==1])} '
-          f'with {test_image_counts[1]} images.\n'
-          f'Metastatic: {len([i for i in test_pts if train_data.get_patient_label(i).item()==0])} '
-          f'with {test_image_counts[0]} images.\n'
-          f'Total: {len(test_pts)} Patients with {len(test_idx)} images.\n')
+    test_image_counts = [0, 0]
+    for pt in test_pts:
+        label = int(eval_test_data.get_patient_label(pt).item())
+        test_image_counts[label] += len(eval_test_data.get_patient_subset(pt))
 
-    print(f'Training patients: {train_pts}.\nEvaluation patients: {eval_pts}.\nTest patients: {test_pts}.\n')
+    comb_image_counts = [eval_image_counts[0] + test_image_counts[0], eval_image_counts[1] + test_image_counts[1]]
+
+    print(f'\nTraining set summary: {len(train_pts)} patients, {len(train_idx)} images. Image counts per class: {train_image_counts}')
+    print(f'Evaluation set summary: {len(eval_pts)} patients, {len(eval_idx)} images. Image counts per class: {eval_image_counts}')
+    print(f'Test  set summary: {len(test_pts)} patients, {len(test_idx)} images. Image counts per class: {test_image_counts}')
+    print(f'Combined Eval+Test summary: {len(comb_pts)} patients, {len(comb_idx)} images. Image counts per class: {comb_image_counts}')
 
     # Create dataloaders for fold
     batch_size = 64
@@ -154,7 +219,6 @@ def main():
     eval_set = torch.utils.data.Subset(eval_test_data, eval_idx)
     test_set = torch.utils.data.Subset(eval_test_data, test_idx)
     comb_set = torch.utils.data.Subset(eval_test_data, comb_idx)
-
 
     # Create loaders
     train_loader = torch.utils.data.DataLoader(train_set,
