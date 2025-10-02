@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #SBATCH --job-name=testing_dataset_functionality
-#SBATCH --partition=agpu72
+#SBATCH --partition=agpu06
 #SBATCH --output=nsclc_main.txt
 #SBATCH --error=nsclc_main.err
 #SBATCH --mail-type=ALL
