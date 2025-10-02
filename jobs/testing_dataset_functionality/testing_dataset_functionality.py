@@ -70,6 +70,7 @@ def main():
     for i in idx:
         # use dataset helper to get the patient name (Slide Name or Subject)
         name = train_data.get_patient_name(i)
+        print(name)
         patient_names[i] = name
         # Detect Stage I by suffix
         if isinstance(name, str) and name.endswith('_StageI'):
