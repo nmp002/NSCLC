@@ -268,8 +268,84 @@ def main():
     eval_auc = [[] for _ in range(len(models))]
     best_score = [0 for _ in range(len(models))]
 
-    # --- Training loop remains unchanged ---
-    # ...
+    # For each epoch
+    for ep in range(epochs[-1]):
+        print(f'\nEpoch {ep + 1}')
+
+        # Train
+        epoch_loss = [0 for _ in range(len(models))]
+
+        # Preds and ground truth to calculate training AUC without having to re-run full set
+        outs = [torch.tensor([]) for _ in range(len(models))]
+        targets = [torch.tensor([]) for _ in range(len(models))]
+
+        for model in models:
+            model.train()
+        for x, target in train_loader:
+            x = x.to(device)
+            target = target.to(device)
+            for i, model in enumerate(models):
+                out = model(x)
+                outs[i] = torch.cat((outs[i], out.cpu().detach()), dim=0)
+                targets[i] = torch.cat((targets[i], target.cpu().detach()), dim=0)
+                loss = loss_function(out, target.unsqueeze(1))
+                optimizers[i].zero_grad()
+                loss.backward()
+                epoch_loss[i] += loss.item()
+                optimizers[i].step()
+        for el, tl, ta, tx, ot, model in zip(epoch_loss, train_loss, train_auc, targets, outs, models):
+            tl.append(el / len(train_set))
+            ta.append(roc_auc_score(tx, ot))
+
+        # Evaluation # Train
+        epoch_loss = [0 for _ in range(len(models))]
+
+        # Preds and ground truth to calculate training AUC without having to re-run full set
+        outs = [torch.tensor([]) for _ in range(len(models))]
+        targets = [torch.tensor([]) for _ in range(len(models))]
+
+        for model in models:
+            model.eval()
+        with torch.no_grad():
+            for x, target in eval_loader:
+                x = x.to(device)
+                target = target.to(device)
+                for i, model in enumerate(models):
+                    out = model(x)
+                    outs[i] = torch.cat((outs[i], out.cpu().detach()), dim=0)
+                    targets[i] = torch.cat((targets[i], target.cpu().detach()), dim=0)
+                    loss = loss_function(out, target.unsqueeze(1))
+                    epoch_loss[i] += loss.item()
+            for el, evl, ea, tx, ot, model in zip(epoch_loss, eval_loss, eval_auc, targets, outs, models):
+                evl.append(el / len(eval_set))
+                ea.append(roc_auc_score(tx, ot))
+
+        for i, (model, el, ea, tl) in enumerate(zip(models, eval_loss, eval_auc, train_loss)):
+            print(f'>>> {model.name}: Train - Loss: {tl[-1]}. AUC: {ta[-1]}.')
+            print(f' --> Eval - Loss: {el[-1]:.4f}. AUC: {ea[-1]:.4f}.')
+
+            with open(f'outputs/{model.name}/results.txt', 'a') as f:
+                f.write(f'\nEpoch {ep + 1}'
+                        f'>>> {model.name}: Train - Loss: {tl[-1]:.4f}. AUC: {ta[-1]:.4f}.'
+                        f'--> Eval - Loss: {el[-1]:.4f}. AUC: {ea[-1]:.4f}.')
+
+            if ea[-1] > best_score[i]:
+                best_score[i] = ea[-1]
+                torch.save(model.state_dict(), f'outputs/{model.name}/models/Best {model.name}.pth')
+                with open(f'outputs/{model.name}/results.txt', 'a') as f:
+                    f.write(f'\nNew best {model.name} saved at epoch {ep + 1} with ROC-AUC of {ea[-1]}')
+                with open(f'outputs/results.txt', 'a') as f:
+                    f.write(f'\nNew best {model.name} saved at epoch {ep + 1} with ROC-AUC of {ea[-1]}')
+
+            if ep + 1 in epochs:
+                torch.save(model.state_dict(), f'outputs/{model.name}/models/Epochs {ep + 1} {model.name}.pth')
+
+    with open(f'outputs/results.txt', 'a') as f:
+        f.write(f'\n\nFinal ROC-AUC Results\n')
+        for model, bs, ta, ea in zip(models, best_score, train_auc, eval_auc):
+            f.write(
+                f'{model.name}: Best eval AUC - {bs:.4f}. '
+                f'Final Train AUC - {ta[-1]:.4f}. Final Eval AUC - {ea[-1]:.4f}\n')
 
     ####################
     # Testing Section: Updated patient-wise evaluation
@@ -323,8 +399,35 @@ def main():
     auc_table = pd.DataFrame(data=data, index=[model.name for model in models], columns=headers)
     auc_table.to_csv(f'outputs/auc_summary.csv', index_label='Model')
 
-    # --- Epoch-wise plots remain unchanged ---
-    # ...
+    # Plot and save epoch-wise outputs
+    headers = ['Training Loss (average per sample)', 'Evaluation Loss (average per sample)',
+               'Training ROC-AUC', 'Evaluation ROC-AUC']
+    for (model, tl, el, ta, ea) in zip(models, train_loss, eval_loss, train_auc, eval_auc):
+        # Save raw data
+        outputs = [[a, b, c, d] for (a, b, c, d) in zip(tl, el, ta, ea)]
+        output_table = pd.DataFrame(data=outputs, index=range(1, epochs[-1] + 1), columns=headers)
+        output_table.to_csv(f'outputs/{model.name}/tabular.csv', index_label='Epoch')
+
+        # Plot data
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 5))
+        plt.suptitle(model.name)
+
+        ax1.plot(range(1, epochs[-1] + 1), tl, label=f'{model.name} Training')
+        ax1.plot(range(1, epochs[-1] + 1), el, label=f'{model.name} Evaluation')
+        ax1.set_xlabel('Epochs')
+        ax1.set_ylabel('Loss')
+        ax1.set_title('Training and Evaluation Losses')
+        ax1.legend()
+
+        ax2.plot(range(1, epochs[-1] + 1), ta, label=f'{model.name} Training')
+        ax2.plot(range(1, epochs[-1] + 1), ea, label=f'{model.name} Evaluation')
+        ax1.set_ylabel('Epochs')
+        ax2.set_ylabel('AUC')
+        ax2.set_title('Training and Evaluation ROC-AUC')
+        ax2.legend()
+
+        fig.savefig(f'outputs/{model.name}/plots/losses_and_aucs.png')
+        plt.close(fig)
 
     # Run
     if __name__ == '__main__':
