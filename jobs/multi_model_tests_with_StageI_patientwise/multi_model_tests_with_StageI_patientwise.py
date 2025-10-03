@@ -358,7 +358,7 @@ def main():
             img_idx = dataset.get_patient_subset(pt_idx)
             subset = torch.utils.data.Subset(dataset, img_idx)
             loader = torch.utils.data.DataLoader(subset, batch_size=len(subset), shuffle=False)
-            scores, _ = score_model(model, loader, print_results=False, make_plot=False, threshold_type=threshold_type)
+            scores = score_model(model, loader, print_results=False, make_plot=False, threshold_type=threshold_type)
             all_scores.append(scores)
         # Average ROC-AUC over patients
         mean_scores = {}
