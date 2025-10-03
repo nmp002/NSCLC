@@ -429,6 +429,6 @@ def main():
         fig.savefig(f'outputs/{model.name}/plots/losses_and_aucs.png')
         plt.close(fig)
 
-    # Run
-    if __name__ == '__main__':
-        main()
+# Run
+if __name__ == '__main__':
+    main()
