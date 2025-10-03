@@ -227,6 +227,33 @@ def main():
     print("\nPatients with 'Stage' in name:", stage_like)
 
 
+    ## Checking if ID is stored in dataloaders ##
+    print('Checking if ID is stored in Dataloaders...\n')
+    # Create dataloaders for fold
+    batch_size = 64
+    train_set = torch.utils.data.Subset(train_data, train_idx)
+    eval_set = torch.utils.data.Subset(eval_test_data, eval_idx)
+    test_set = torch.utils.data.Subset(eval_test_data, test_idx)
+    comb_set = torch.utils.data.Subset(eval_test_data, comb_idx)
+
+    # Create loaders
+    train_loader = torch.utils.data.DataLoader(train_set,
+                                               batch_size=batch_size, shuffle=True, num_workers=0,
+                                               drop_last=(True if len(train_idx) % batch_size == 1 else False))
+    eval_loader = torch.utils.data.DataLoader(eval_set,
+                                              batch_size=batch_size, shuffle=False, num_workers=0,
+                                              drop_last=(True if len(eval_idx) % batch_size == 1 else False))
+    test_loader = torch.utils.data.DataLoader(test_set,
+                                              batch_size=batch_size, shuffle=False, num_workers=0,
+                                              drop_last=(True if len(test_idx) % batch_size == 1 else False))
+    comb_loader = torch.utils.data.DataLoader(comb_set,
+                                              batch_size=batch_size, shuffle=False, num_workers=0,
+                                              drop_last=(True if len(comb_idx) % batch_size == 1 else False))
+
+    for x, y in test_loader:
+        print(x.shape, y.shape)
+        break
+
 
 # Run
 if __name__ == '__main__':
