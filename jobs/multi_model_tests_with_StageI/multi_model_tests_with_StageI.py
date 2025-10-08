@@ -1,4 +1,3 @@
-# --- Existing imports and setup remain unchanged ---
 # Import packages
 import os
 
@@ -62,7 +61,7 @@ def main():
     for ix in idx_for_removal:
         idx.remove(ix)
 
-    # --- NEW: Stage I handling (Method 2: name endswith '_StageI' -> Stage I) ---
+    # Stage I handling
     stageI_pts = []
     stageII_pts = []
     patient_names = {}  # map idx -> name for printing and bookkeeping
@@ -91,13 +90,13 @@ def main():
     if len(stageII_pts) == 0:
         raise RuntimeError('No Stage II patients detected to split into train/eval.')
 
-    # Get labels for Stage II patients only (0 = Metastatic, 1 = Non-metastatic per dataset definition)
+    # Get labels for Stage II patients only (0 = Metastatic, 1 = Non-metastatic)
     labels_stageII = [train_data.get_patient_label(i).item() for i in stageII_pts]
     image_counts = [0, 0]
     for i, label in zip(stageII_pts, labels_stageII):
         image_counts[int(label)] += len(train_data.get_patient_subset(i))
 
-    # Separate by label (still keep them shuffled deterministically)
+    # Separate by label
     paired = list(zip(stageII_pts, labels_stageII))
     random.shuffle(paired)  # shuffle the Stage II patients before stratified split
     # split back into class-specific lists (preserve the shuffle order within each class)
@@ -107,14 +106,11 @@ def main():
     print(f'Stage II metastatic (label=0): {len(zeros)} patients')
     print(f'Stage II non-metastatic (label=1): {len(ones)} patients')
 
-    # Desired Stage II train/eval sizes (you specified: split 25 StageII -> 13 / 12)
+    # Stage II train/eval split
     total_stageII = len(stageII_pts)
     desired_train_stageII = int(round(total_stageII * 13 / 25)) if total_stageII == 25 else None
     # If the user specifically expects 13/12 when total_stageII == 25, enforce it; otherwise default to same ratio as original:
     if desired_train_stageII is None:
-        # fallback to original ratio from your script:
-        # original used eval first 3 from each class then rest as train (not directly transferable),
-        # simpler fallback: use 0.52 train fraction ~ 13/25
         desired_train_stageII = int(round(total_stageII * 13 / 25))
     desired_train = desired_train_stageII
     desired_eval = total_stageII - desired_train
@@ -155,10 +151,8 @@ def main():
     assert len(train_pts) == desired_train
     assert len(eval_pts) == desired_eval
 
-    # Test set is ALL Stage I patients (explicit exclusion from training) - user requested this.
-    test_pts = list(stageI_pts)  # copy
-    # If you still want to include any Stage II holdouts in the test set (you previously had last-of-class),
-    # the user requested *all Stage I* to be test, and Stage II split into train/eval, so we DO NOT add StageII patients to test.
+    # Test set is ALL Stage I patients
+    test_pts = list(stageI_pts)
 
     # Print the chosen splits (names)
     print('\nFINAL SPLITS (patient indices and names):')
@@ -190,7 +184,7 @@ def main():
     comb_idx = [im for i in comb_idx for im in i]
     random.shuffle(comb_idx)
 
-    # Image count summaries (optional, mirror previous print style)
+    # Image count summaries
     train_image_counts = [0, 0]
     for pt in train_pts:
         label = int(train_data.get_patient_label(pt).item())
