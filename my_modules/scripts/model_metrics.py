@@ -80,6 +80,14 @@ def calculate_auc_roc(model, loader, print_results=False, make_plot=False):
 
 
 def score_model(model, loader, loss_fn=None, print_results=False, make_plot=False, threshold_type='none'):
+    """
+    score_model now accepts either:
+      - a DataLoader yielding (x, y) batches (original behavior), or
+      - a tuple (scores_tensor, labels_tensor) where scores_tensor is 1D or Nx1 tensor
+        of sigmoid-style outputs and labels_tensor is 1D tensor of 0/1 labels.
+
+    Returns the same `scores` dict and `fig_out` (if make_plot True) as before.
+    """
     def make_the_plots():
         fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(20, 5))
         RocCurveDisplay(fpr=fpr, tpr=tpr, roc_auc=scores['ROC-AUC']).plot(ax=ax1)
@@ -91,36 +99,69 @@ def score_model(model, loader, loss_fn=None, print_results=False, make_plot=Fals
         return fig
 
     scores = OrderedDict()
-    model.eval()
-    outs = torch.tensor([])
-    targets = torch.tensor([])
-    loss = 0
-    with torch.no_grad():
-        for x, target in loader:
-            if next(model.parameters()).is_cuda:
-                x, target = x.cuda(), target.cuda()
-            outs = torch.cat((outs, model(x).cpu().detach()), dim=0)
-            targets = torch.cat((targets, target.cpu().detach()), dim=0)
 
-            # Clean up for memory
-            del x, target
-            torch.cuda.empty_cache()
+    # Detect raw (scores, labels) input for patient-wise use
+    if isinstance(loader, tuple) and len(loader) == 2:
+        # Accept either torch.Tensor or array-like inputs
+        outs = loader[0].detach().cpu().squeeze() if isinstance(loader[0], torch.Tensor) else torch.tensor(loader[0])
+        targets = loader[1].detach().cpu().squeeze() if isinstance(loader[1], torch.Tensor) else torch.tensor(loader[1])
 
+        # Ensure float tensors
+        outs = outs.float()
+        targets = targets.long()
+        loss = 0
+        # If loss_fn provided and compatible, try to compute; otherwise skip
         if loss_fn is not None:
             try:
-                loss += loss_fn(outs, targets)
-            except Exception as e:
-                loss += loss_fn(outs, targets.unsqueeze(1))
-            scores['Loss'] = loss
+                loss = loss_fn(outs, targets)
+                scores['Loss'] = loss
+            except Exception:
+                try:
+                    scores['Loss'] = loss_fn(outs, targets.unsqueeze(1))
+                except Exception:
+                    # incompatible loss with raw scores, ignore
+                    pass
+    else:
+        # Original behavior: iterate through loader and run model
+        model.eval()
+        outs = torch.tensor([])
+        targets = torch.tensor([])
+        loss = 0
+        with torch.no_grad():
+            for x, target in loader:
+                if next(model.parameters()).is_cuda:
+                    x, target = x.cuda(), target.cuda()
+                outs = torch.cat((outs, model(x).cpu().detach()), dim=0)
+                targets = torch.cat((targets, target.cpu().detach()), dim=0)
+
+                # Clean up for memory
+                del x, target
+                torch.cuda.empty_cache()
+
+            if loss_fn is not None:
+                try:
+                    loss += loss_fn(outs, targets)
+                except Exception as e:
+                    loss += loss_fn(outs, targets.unsqueeze(1))
+                scores['Loss'] = loss
+
+    # Convert to numpy-friendly arrays for sklearn where needed
+    # Keep torch tensors for internal uses below but sklearn can accept torch arrays in many cases.
     # ROC
     fpr, tpr, thresholds = roc_curve(targets, outs, pos_label=1)
     scores['ROC-AUC'] = auc(fpr, tpr)
     scores['Optimal Threshold from ROC'] = thresholds[np.argmax(tpr - fpr)]
 
     # Precision-Recall
-    precision, recall, thresholds = precision_recall_curve(targets, outs)
-    scores['F1 Score'] = np.nanmax((2 * precision * recall) / (precision + recall + 1e-9))  # Small number for stability
-    scores['Optimal Threshold from F1'] = thresholds[np.argmax(scores['F1 Score'])]
+    precision, recall, pr_thresholds = precision_recall_curve(targets, outs)
+    # F1 best estimate (small epsilon for numerical stability)
+    f1_scores = (2 * precision * recall) / (precision + recall + 1e-9)
+    scores['F1 Score'] = np.nanmax(f1_scores)
+    # Guard pr_thresholds indexing: if pr_thresholds is empty, default to ROC threshold
+    try:
+        scores['Optimal Threshold from F1'] = pr_thresholds[np.nanargmax(f1_scores)]
+    except Exception:
+        scores['Optimal Threshold from F1'] = scores['Optimal Threshold from ROC']
     scores['Average Precision'] = average_precision_score(targets, outs)
 
     # Now use threshold to make predictions and score
