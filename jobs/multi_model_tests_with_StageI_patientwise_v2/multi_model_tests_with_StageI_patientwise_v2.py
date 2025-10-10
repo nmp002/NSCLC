@@ -441,6 +441,7 @@ def main():
         print(f'\n>>> {model.name} at best evaluated on patient-wise test set...')
         model.load_state_dict(torch.load(f'outputs/{model.name}/models/Best {model.name}.pth'))
         scores_pt, labels_pt = patient_wise_loader_outputs(model, eval_test_data, test_pts, device)
+        print(f"Patient scores: {scores_pt}, Patient labels: {labels_pt}")
         scores, fig = score_model(model, (scores_pt, labels_pt), print_results=True, make_plot=True,
                                   threshold_type='roc')
         fig.savefig(f'outputs/{model.name}/plots/patientwise_best_eval_{model.name}_on_test.png')
