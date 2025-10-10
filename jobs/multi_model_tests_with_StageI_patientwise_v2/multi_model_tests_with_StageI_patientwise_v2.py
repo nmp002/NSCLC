@@ -52,8 +52,10 @@ def patient_wise_loader_outputs(model, dataset, patient_indices, device):
                 outs.append(out_val)
             if len(outs) == 0:
                 continue
-            max_score = max(outs)  # “most non-metastatic” output
-            patient_scores.append(max_score)
+            # max_score = max(outs)  # “most non-metastatic” output
+            print(f"-----INDIVIDUAL IMAGE OUTPUTS---\n{outs}")
+            min_score = min(outs)
+            patient_scores.append(min_score)
             patient_labels.append(dataset.get_patient_label(pt_idx).item())
     return torch.tensor(patient_scores), torch.tensor(patient_labels)
 
