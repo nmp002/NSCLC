@@ -315,7 +315,7 @@ def main():
     # Hyperparameters #
     ###################
     if FAST_TEST:
-        epochs = [1, 2]   # small checkpoints for quick smoke test
+        epochs = [1, 5]   # small checkpoints for quick smoke test
         total_epochs = max(epochs)
         learning_rate = 1e-4  # larger lr for quick convergence during smoke test
     else:
@@ -422,7 +422,7 @@ def main():
                 with open(f'outputs/results.txt', 'a') as f:
                     f.write(f'\nNew best {model.name} saved at epoch {ep + 1} with ROC-AUC of {ea[-1]}')
 
-            if (ep + 1) in epochs and not FAST_TEST:
+            if (ep + 1) in epochs:
                 torch.save(model.state_dict(), f'outputs/{model.name}/models/Epochs {ep + 1} {model.name}.pth')
 
     with open(f'outputs/results.txt', 'a') as f:
