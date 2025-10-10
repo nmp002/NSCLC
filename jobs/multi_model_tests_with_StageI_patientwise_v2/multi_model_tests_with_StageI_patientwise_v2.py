@@ -1,6 +1,6 @@
 # Fast smoke-test version of multi_model_tests_with_StageI.py
 # Toggle FAST_TEST to switch between smoke test and full run
-FAST_TEST = True
+FAST_TEST = False
 
 # Import packages
 import os
