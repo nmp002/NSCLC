@@ -1,6 +1,10 @@
+# Fast smoke-test version of multi_model_tests_with_StageI.py
+# Toggle FAST_TEST to switch between smoke test and full run
+FAST_TEST = True
+
 # Import packages
 import os
-
+import numpy as np
 import pandas as pd
 import torch.multiprocessing as mp
 import torch.utils.data
@@ -16,6 +20,20 @@ from my_modules.scripts.helper_functions import set_seed
 from my_modules.scripts.dataset import NSCLCDataset
 
 
+def format_metric(item):
+    import torch as _torch
+    try:
+        if _torch.is_tensor(item):
+            if item.numel() == 1:
+                return f"{float(item.item()):.4f}"
+            return str(item)
+        if isinstance(item, (int, float, np.floating, np.integer)):
+            return f"{float(item):.4f}"
+        return f"{float(item):.4f}"
+    except Exception:
+        return str(item)
+
+
 def patient_wise_loader_outputs(model, dataset, patient_indices, device):
     """Aggregate model outputs to patient level using max output rule."""
     model.eval()
@@ -29,7 +47,9 @@ def patient_wise_loader_outputs(model, dataset, patient_indices, device):
                 x, _ = dataset[im_idx]
                 x = x.unsqueeze(0).to(device)
                 out = model(x)
-                outs.append(out.item())
+                # handle tensors of shape (1,1) or (1,)
+                out_val = out.cpu().detach().squeeze().item()
+                outs.append(out_val)
             if len(outs) == 0:
                 continue
             max_score = max(outs)  # “most non-metastatic” output
@@ -46,7 +66,11 @@ def main():
     # Set up multiprocessing
     print(f'Num cores: {mp.cpu_count()}')
     print(f'Num GPUs: {torch.cuda.device_count()}')
-    mp.set_start_method('forkserver', force=True)
+    try:
+        mp.set_start_method('forkserver', force=True)
+    except RuntimeError:
+        # start method already set in some environments
+        pass
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     ################
@@ -55,18 +79,34 @@ def main():
     # To independent but identical (except for transformations) datasets
     train_data = NSCLCDataset('NSCLC_Data_for_ML', ['fad', 'nadh', 'shg', 'intensity', 'orr'],
                               device=torch.device('cpu'), label='Metastases', mask_on=True)
-    train_data.augment()
-    train_data.normalize_method = 'preset'
-    train_data.to(device)
-    train_data.transforms = tvt.Compose([tvt.RandomVerticalFlip(p=0.25),
-                                         tvt.RandomHorizontalFlip(p=0.25),
-                                         tvt.RandomRotation(degrees=(-180, 180))])
-
     eval_test_data = NSCLCDataset('NSCLC_Data_for_ML', ['fad', 'nadh', 'shg', 'intensity', 'orr'],
                                   device=torch.device('cpu'), label='Metastases', mask_on=True)
-    eval_test_data.augment()
-    eval_test_data.normalize_method = 'preset'
-    eval_test_data.to(device)
+
+    # FAST_TEST changes
+    if FAST_TEST:
+        # reduce augmentation and heavy ops
+        train_data.augmented = False
+        train_data.augment_patients = False
+        eval_test_data.augmented = False
+        eval_test_data.augment_patients = False
+        train_data.normalize_method = 'preset'
+        eval_test_data.normalize_method = 'preset'
+        # lighter transforms (or none)
+        train_data.transforms = None
+        eval_test_data.transforms = None
+        # move to device
+        train_data.to(device)
+        eval_test_data.to(device)
+    else:
+        train_data.augment()
+        train_data.normalize_method = 'preset'
+        train_data.to(device)
+        train_data.transforms = tvt.Compose([tvt.RandomVerticalFlip(p=0.25),
+                                             tvt.RandomHorizontalFlip(p=0.25),
+                                             tvt.RandomRotation(degrees=(-180, 180))])
+        eval_test_data.augment()
+        eval_test_data.normalize_method = 'preset'
+        eval_test_data.to(device)
 
     # Random split datasets (start from all patients)
     subsampler = torch.utils.data.sampler.SubsetRandomSampler(range(train_data.patient_count))
@@ -121,7 +161,6 @@ def main():
     # Separate by label
     paired = list(zip(stageII_pts, labels_stageII))
     random.shuffle(paired)  # shuffle the Stage II patients before stratified split
-    # split back into class-specific lists (preserve the shuffle order within each class)
     zeros = [i for i, l in paired if int(l) == 0]  # metastatic
     ones = [i for i, l in paired if int(l) == 1]   # non-metastatic
 
@@ -131,7 +170,6 @@ def main():
     # Stage II train/eval split
     total_stageII = len(stageII_pts)
     desired_train_stageII = int(round(total_stageII * 13 / 25)) if total_stageII == 25 else None
-    # If the user specifically expects 13/12 when total_stageII == 25, enforce it; otherwise default to same ratio as original:
     if desired_train_stageII is None:
         desired_train_stageII = int(round(total_stageII * 13 / 25))
     desired_train = desired_train_stageII
@@ -150,7 +188,6 @@ def main():
     # Distribute the remaining train slots according to largest fractional remainder
     current_sum = sum(class_train_counts)
     remaining_to_assign = desired_train - current_sum
-    # sort remainders descending by fractional part
     remainders_sorted = sorted(enumerate([r[0] for r in remainders]), key=lambda x: x[1], reverse=True)
     idx_order = [r[0] for r in remainders_sorted]
     k = 0
@@ -175,6 +212,14 @@ def main():
 
     # Test set is ALL Stage I patients
     test_pts = list(stageI_pts)
+
+    # For FAST_TEST use fixed small subsets (deterministic)
+    if FAST_TEST:
+        n_per_split = 1
+        train_pts = train_pts[:n_per_split]
+        eval_pts = eval_pts[:n_per_split]
+        test_pts = test_pts[:n_per_split]
+        print('FAST_TEST enabled: using first patient from each split only.')
 
     # Print the chosen splits (names)
     print('\nFINAL SPLITS (patient indices and names):')
@@ -230,7 +275,7 @@ def main():
     print(f'Combined Eval+Test summary: {len(comb_pts)} patients, {len(comb_idx)} images. Image counts per class: {comb_image_counts}')
 
     # Create dataloaders for fold
-    batch_size = 64
+    batch_size = 8 if FAST_TEST else 64
     train_set = torch.utils.data.Subset(train_data, train_idx)
     eval_set = torch.utils.data.Subset(eval_test_data, eval_idx)
     test_set = torch.utils.data.Subset(eval_test_data, test_idx)
@@ -253,28 +298,13 @@ def main():
     #####################
     # Prepare model zoo #
     #####################
-    # ResNet18
+    # Keep a single simple model for smoke test
     models = [ResNet18NPlaned(train_data.shape, start_width=64, n_classes=1)]
-
-    # InceptionResNetV2 Feature Extractor (BigCoMET)
-    # feature_extractor = AdaptedInputInceptionResNetV2(train_data.shape, num_classes=1000, pretrained=False)
-    # classifier = CometClassifierWithBinaryOutput
-    # models.append(FeatureExtractorToClassifier(train_data.shape,
-    #                                            feature_extractor=feature_extractor,
-    #                                            classifier=classifier, layer='inceptionresnetv2.conv2d_7b'))
-
-    # Xception Feature Extractor
-    # feature_extractor = AdaptedInputXception(train_data.shape, num_classes=1000, pretrained=False)
-    # classifier = torch.nn.Sequential(torch.nn.Linear(2048, 1), torch.nn.Sigmoid())
-    # models.append(FeatureExtractorToClassifier(train_data.shape,
-    #                                            feature_extractor=feature_extractor,
-    #                                            classifier=classifier, layer='xception.conv4'))
-
-    # Basic CNNs
-    models[len(models):] = [CNNet(train_data.shape),
-                            RegularizedCNNet(train_data.shape),
-                            ParallelCNNet(train_data.shape),
-                            RegularizedParallelCNNet(train_data.shape)]
+    if not FAST_TEST:
+        models[len(models):] = [CNNet(train_data.shape),
+                                RegularizedCNNet(train_data.shape),
+                                ParallelCNNet(train_data.shape),
+                                RegularizedParallelCNNet(train_data.shape)]
 
     # Put all models on GPU if available
     for model in models:
@@ -284,21 +314,29 @@ def main():
     ###################
     # Hyperparameters #
     ###################
-    epochs = [250, 500, 1500, 2000, 2500]
-    learning_rate = 1e-8
+    if FAST_TEST:
+        epochs = [1, 2]   # small checkpoints for quick smoke test
+        total_epochs = max(epochs)
+        learning_rate = 1e-4  # larger lr for quick convergence during smoke test
+    else:
+        epochs = [250, 500, 1500, 2000, 2500]
+        total_epochs = epochs[-1]
+        learning_rate = 1e-8
+
     loss_function = nn.BCELoss()
     optimizers = [torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=0.01) for model in models]
 
     ###############
     # Output Prep #
     ###############
-    # Prep results file
+    # Prep results file (safe to overwrite in smoke test)
     for model in models:
         os.makedirs(f'outputs/{model.name}/plots', exist_ok=True)
         os.makedirs(f'outputs/{model.name}/models', exist_ok=True)
         with open(f'outputs/{model.name}/results.txt', 'w') as f:
             f.write(f'{model.name} Results\n')
-        with open(f'outputs/results.txt', 'w') as f:
+    if not os.path.exists('outputs/results.txt'):
+        with open('outputs/results.txt', 'w') as f:
             f.write('Overall Results\n')
 
     train_loss = [[] for _ in range(len(models))]
@@ -306,8 +344,9 @@ def main():
     eval_loss = [[] for _ in range(len(models))]
     eval_auc = [[] for _ in range(len(models))]
     best_score = [0 for _ in range(len(models))]
+
     # For each epoch
-    for ep in range(epochs[-1]):
+    for ep in range(total_epochs):
         print(f'\nEpoch {ep + 1}')
 
         # Train
@@ -332,13 +371,16 @@ def main():
                 epoch_loss[i] += loss.item()
                 optimizers[i].step()
         for el, tl, ta, tx, ot, model in zip(epoch_loss, train_loss, train_auc, targets, outs, models):
-            tl.append(el / len(train_set))
-            ta.append(roc_auc_score(tx, ot))
+            # avoid division by zero in smoke test if train_set is empty
+            tl.append(el / (len(train_set) if len(train_set) > 0 else 1))
+            try:
+                ta.append(roc_auc_score(tx, ot))
+            except Exception:
+                ta.append(0.0)
 
         # Evaluation # Train
         epoch_loss = [0 for _ in range(len(models))]
 
-        # Preds and ground truth to calculate training AUC without having to re-run full set
         outs = [torch.tensor([]) for _ in range(len(models))]
         targets = [torch.tensor([]) for _ in range(len(models))]
 
@@ -355,16 +397,21 @@ def main():
                     loss = loss_function(out, target.unsqueeze(1))
                     epoch_loss[i] += loss.item()
             for el, evl, ea, tx, ot, model in zip(epoch_loss, eval_loss, eval_auc, targets, outs, models):
-                evl.append(el / len(eval_set))
-                ea.append(roc_auc_score(tx, ot))
+                evl.append(el / (len(eval_set) if len(eval_set) > 0 else 1))
+                try:
+                    ea.append(roc_auc_score(tx, ot))
+                except Exception:
+                    ea.append(0.0)
 
         for i, (model, el, ea, tl) in enumerate(zip(models, eval_loss, eval_auc, train_loss)):
-            print(f'>>> {model.name}: Train - Loss: {tl[-1]}. AUC: {ta[-1]}.')
+            train_auc_val = train_auc[i][-1] if len(train_auc[i]) > 0 else 0.0
+            print(f'>>> {model.name}: Train - Loss: {tl[-1] if len(tl)>0 else 0.0}. AUC: {train_auc_val}.')
             print(f' --> Eval - Loss: {el[-1]:.4f}. AUC: {ea[-1]:.4f}.')
 
             with open(f'outputs/{model.name}/results.txt', 'a') as f:
                 f.write(f'\nEpoch {ep + 1}'
-                        f'>>> {model.name}: Train - Loss: {tl[-1]:.4f}. AUC: {ta[-1]:.4f}.'
+                        f'>>> {model.name}: Train - Loss: {tl[-1] if len(tl)>0 else 0.0:.4f}. '
+                        f'AUC: {train_auc_val:.4f}.'
                         f'--> Eval - Loss: {el[-1]:.4f}. AUC: {ea[-1]:.4f}.')
 
             if ea[-1] > best_score[i]:
@@ -375,7 +422,7 @@ def main():
                 with open(f'outputs/results.txt', 'a') as f:
                     f.write(f'\nNew best {model.name} saved at epoch {ep + 1} with ROC-AUC of {ea[-1]}')
 
-            if ep + 1 in epochs:
+            if (ep + 1) in epochs and not FAST_TEST:
                 torch.save(model.state_dict(), f'outputs/{model.name}/models/Epochs {ep + 1} {model.name}.pth')
 
     with open(f'outputs/results.txt', 'a') as f:
@@ -383,7 +430,7 @@ def main():
         for model, bs, ta, ea in zip(models, best_score, train_auc, eval_auc):
             f.write(
                 f'{model.name}: Best eval AUC - {bs:.4f}. '
-                f'Final Train AUC - {ta[-1]:.4f}. Final Eval AUC - {ea[-1]:.4f}\n')
+                f'Final Train AUC - {ta[-1] if len(ta)>0 else 0.0:.4f}. Final Eval AUC - {ea[-1] if len(ea)>0 else 0.0:.4f}\n')
 
     # Testing (patient-wise)
     headers = ['Best Test', 'Best Eval & Test']
@@ -402,7 +449,7 @@ def main():
             f.write(f'\n>>> {model.name} patient-wise best-eval test results...')
             for key, item in scores.items():
                 if 'Confusion' not in key:
-                    f.write(f'|\t{key:<35} {f"{item:.4f}":>10}\t|\n')
+                    f.write(f'|\t{key:<35} {format_metric(item):>10}\t|\n')
             f.write('_____________________________________________________\n')
         data[i].append(scores['ROC-AUC'])
 
@@ -417,7 +464,7 @@ def main():
             f.write(f'\n>>> {model.name} patient-wise best-eval eval+test results...')
             for key, item in scores.items():
                 if 'Confusion' not in key:
-                    f.write(f'|\t{key:<35} {f"{item:.4f}":>10}\t|\n')
+                    f.write(f'|\t{key:<35} {format_metric(item):>10}\t|\n')
             f.write('_____________________________________________________\n')
         data[i].append(scores['ROC-AUC'])
 
@@ -425,7 +472,10 @@ def main():
         for ep in epochs:
             headers.append(f'{ep} Epoch Test') if f'{ep} Epoch Test' not in headers else None
             print(f'\n>>> {model.name} at {ep} epochs on patient-wise test set...')
-            model.load_state_dict(torch.load(f'outputs/{model.name}/models/Epochs {ep} {model.name}.pth'))
+            # load epoch checkpoint if exists, otherwise skip
+            ep_path = f'outputs/{model.name}/models/Epochs {ep} {model.name}.pth'
+            if os.path.exists(ep_path):
+                model.load_state_dict(torch.load(ep_path))
             scores_pt, labels_pt = patient_wise_loader_outputs(model, eval_test_data, test_pts, device)
             scores, fig = score_model(model, (scores_pt, labels_pt), print_results=True, make_plot=True,
                                       threshold_type='roc')
@@ -435,7 +485,7 @@ def main():
                 f.write(f'\n>>> {model.name} at {ep} epochs patient-wise test results...')
                 for key, item in scores.items():
                     if 'Confusion' not in key:
-                        f.write(f'|\t{key:<35} {f"{item:.4f}":>10}\t|\n')
+                        f.write(f'|\t{key:<35} {format_metric(item):>10}\t|\n')
                 f.write('_____________________________________________________\n')
             data[i].append(scores['ROC-AUC'])
 
@@ -450,7 +500,7 @@ def main():
                 f.write(f'\n>>> {model.name} at {ep} epochs patient-wise eval+test results...')
                 for key, item in scores.items():
                     if 'Confusion' not in key:
-                        f.write(f'|\t{key:<35} {f"{item:.4f}":>10}\t|\n')
+                        f.write(f'|\t{key:<35} {format_metric(item):>10}\t|\n')
                 f.write('_____________________________________________________\n')
             data[i].append(scores['ROC-AUC'])
 
@@ -462,21 +512,21 @@ def main():
                'Training ROC-AUC', 'Evaluation ROC-AUC']
     for (model, tl, el, ta, ea) in zip(models, train_loss, eval_loss, train_auc, eval_auc):
         outputs = [[a, b, c, d] for (a, b, c, d) in zip(tl, el, ta, ea)]
-        output_table = pd.DataFrame(data=outputs, index=range(1, epochs[-1] + 1), columns=headers)
+        output_table = pd.DataFrame(data=outputs, index=range(1, total_epochs + 1), columns=headers)
         output_table.to_csv(f'outputs/{model.name}/tabular.csv', index_label='Epoch')
 
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 5))
         plt.suptitle(model.name)
 
-        ax1.plot(range(1, epochs[-1] + 1), tl, label=f'{model.name} Training')
-        ax1.plot(range(1, epochs[-1] + 1), el, label=f'{model.name} Evaluation')
+        ax1.plot(range(1, total_epochs + 1), tl, label=f'{model.name} Training')
+        ax1.plot(range(1, total_epochs + 1), el, label=f'{model.name} Evaluation')
         ax1.set_xlabel('Epochs')
         ax1.set_ylabel('Loss')
         ax1.set_title('Training and Evaluation Losses')
         ax1.legend()
 
-        ax2.plot(range(1, epochs[-1] + 1), ta, label=f'{model.name} Training')
-        ax2.plot(range(1, epochs[-1] + 1), ea, label=f'{model.name} Evaluation')
+        ax2.plot(range(1, total_epochs + 1), ta, label=f'{model.name} Training')
+        ax2.plot(range(1, total_epochs + 1), ea, label=f'{model.name} Evaluation')
         ax1.set_ylabel('Epochs')
         ax2.set_ylabel('AUC')
         ax2.set_title('Training and Evaluation ROC-AUC')
