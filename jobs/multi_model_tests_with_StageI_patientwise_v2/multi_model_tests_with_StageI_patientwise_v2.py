@@ -302,9 +302,9 @@ def main():
     models = [ResNet18NPlaned(train_data.shape, start_width=64, n_classes=1)]
     if not FAST_TEST:
         models[len(models):] = [CNNet(train_data.shape),
-                                RegularizedCNNet(train_data.shape),
-                                ParallelCNNet(train_data.shape),
-                                RegularizedParallelCNNet(train_data.shape)]
+                                RegularizedCNNet(train_data.shape)]
+                               # ParallelCNNet(train_data.shape),
+                               # RegularizedParallelCNNet(train_data.shape)]
 
     # Put all models on GPU if available
     for model in models:
