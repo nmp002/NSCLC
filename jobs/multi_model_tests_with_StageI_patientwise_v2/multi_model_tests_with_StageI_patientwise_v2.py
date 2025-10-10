@@ -414,7 +414,7 @@ def main():
                         f'AUC: {train_auc_val:.4f}.'
                         f'--> Eval - Loss: {el[-1]:.4f}. AUC: {ea[-1]:.4f}.')
 
-            if ea[-1] > best_score[i]:
+            if ea[-1] > best_score[i] or FAST_TEST == True:
                 best_score[i] = ea[-1]
                 torch.save(model.state_dict(), f'outputs/{model.name}/models/Best {model.name}.pth')
                 with open(f'outputs/{model.name}/results.txt', 'a') as f:
