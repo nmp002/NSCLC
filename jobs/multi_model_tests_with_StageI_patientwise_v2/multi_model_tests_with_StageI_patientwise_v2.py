@@ -215,7 +215,7 @@ def main():
 
     # For FAST_TEST use fixed small subsets (deterministic)
     if FAST_TEST:
-        n_per_split = 1
+        n_per_split = 4
         train_pts = train_pts[:n_per_split]
         eval_pts = eval_pts[:n_per_split]
         test_pts = test_pts[:n_per_split]
