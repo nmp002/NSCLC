@@ -3,7 +3,7 @@
 # Uses ROC-optimized threshold per set inside score_model. Only testing metrics reported.
 
 FAST_TEST = False
-NUM_SPLITS = 10          # FAST_TEST -> 1
+NUM_SPLITS = 5          # FAST_TEST -> 1
 RANDOM_SEED = 42
 
 import os
