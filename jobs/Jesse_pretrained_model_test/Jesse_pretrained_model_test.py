@@ -136,6 +136,10 @@ def main():
         threshold_type='roc'
     )
 
+    print("Testing patient scores:", scores_testII_pt)
+    print("Testing patient labels:", labels_testII_pt)
+    print("Num patients:", len(scores_testII_pt))
+
     thr_test = scores_testII.get('Optimal Threshold from ROC', 0.5)
     print(f"Stage II ROC-optimized threshold: {thr_test:.4f}")
 
