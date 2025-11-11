@@ -130,15 +130,16 @@ def main():
         model, data, stageII_indices, device, pool_method=POOL_METHOD
     )
 
+    print("Testing patient scores:", scores_testII_pt)
+    print("Testing patient labels:", labels_testII_pt)
+    print("Num patients:", len(scores_testII_pt))
+
     scores_testII, fig_testII = score_model(
         model, (scores_testII_pt, labels_testII_pt),
         print_results=True, make_plot=True,
         threshold_type='roc'
     )
 
-    print("Testing patient scores:", scores_testII_pt)
-    print("Testing patient labels:", labels_testII_pt)
-    print("Num patients:", len(scores_testII_pt))
 
     thr_test = scores_testII.get('Optimal Threshold from ROC', 0.5)
     print(f"Stage II ROC-optimized threshold: {thr_test:.4f}")
