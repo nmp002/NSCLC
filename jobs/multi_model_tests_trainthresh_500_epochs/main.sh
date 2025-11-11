@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name=multi_model_tests_trainthresh_250_epochs
+#SBATCH --job-name=multi_model_tests_trainthresh_500_epochs
 #SBATCH --partition=agpu06
 #SBATCH --output=nsclc_main.txt
 #SBATCH --error=nsclc_main.err
@@ -45,7 +45,7 @@ wait
 cd /scratch/$SLURM_JOB_ID/ || exit
 
 echo "Python script initiating..."
-python3 multi_model_tests_trainthresh_250_epochs.py
+python3 multi_model_tests_trainthresh_500_epochs.py
 
 rsync -av -q /scratch/$SLURM_JOB_ID/ $SLURM_SUBMIT_DIR/
 
