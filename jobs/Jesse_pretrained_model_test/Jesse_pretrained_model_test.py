@@ -47,6 +47,18 @@ def pool_patient_scores(outs, method='median'):
     return float(np.median(arr))
 
 
+def get_patient_indices_by_name(dataset, name_list):
+    """Find patient indices matching any name substring in name_list."""
+    matched = []
+    for i in range(dataset.patient_count):
+        name = dataset.get_patient_name(i)
+        if not isinstance(name, str):
+            continue
+        if any(n in name for n in name_list):  # substring match
+            matched.append(i)
+    return matched
+
+
 def patient_wise_loader_outputs(model, dataset, patient_indices, device, pool_method='median'):
     model.eval()
     patient_scores, patient_labels = [], []
@@ -86,25 +98,20 @@ def main():
     data.normalize_method = 'preset'
     data.to(device)
 
-    # Map Stage II identifiers to internal patient indices
-    stageII_indices = []
-    name_map = {}
-    for i in range(data.patient_count):
-        name = data.get_patient_name(i)
-        name_map[i] = name
-        if name in TEST_PATIENT_IDS_STAGEII:
-            stageII_indices.append(i)
-
-    print(f"Resolved Stage II test patients: {[(i, name_map[i]) for i in stageII_indices]}")
+    # --- Resolve Stage II patient IDs to dataset indices ---
+    stageII_indices = get_patient_indices_by_name(data, TEST_PATIENT_IDS_STAGEII)
+    patient_names = {i: data.get_patient_name(i) for i in stageII_indices}
+    print(f"Resolved Stage II test patients: {[(i, patient_names[i]) for i in stageII_indices]}")
+    if len(stageII_indices) == 0:
+        raise ValueError("No Stage II test patients found. Check naming convention or ID list.")
     if len(stageII_indices) != len(TEST_PATIENT_IDS_STAGEII):
-        print("Warning: Some specified patient IDs were not found in the dataset.")
+        print("Warning: Some specified patient IDs were not matched exactly.")
 
     # Identify Stage I patients
-    stageI_indices = []
-    for i in range(data.patient_count):
-        name = data.get_patient_name(i)
-        if isinstance(name, str) and name.endswith('_StageI'):
-            stageI_indices.append(i)
+    stageI_indices = [
+        i for i in range(data.patient_count)
+        if isinstance(data.get_patient_name(i), str) and data.get_patient_name(i).endswith('_StageI')
+    ]
     print(f"Found {len(stageI_indices)} Stage I patients for evaluation.")
 
     # Instantiate model
@@ -139,7 +146,6 @@ def main():
         print_results=True, make_plot=True,
         threshold_type='roc'
     )
-
 
     thr_test = scores_testII.get('Optimal Threshold from ROC', 0.5)
     print(f"Stage II ROC-optimized threshold: {thr_test:.4f}")
