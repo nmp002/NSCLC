@@ -17,7 +17,7 @@ from my_modules.scripts.dataset import NSCLCDataset
 # ----------------------- Configuration --------------------------
 FAST_TEST = False
 MODEL_NAME = "ResNet18"
-MODEL_PATH = "/home/nmp002/NSCLC_Data_for_ML/Best_ResNet18.pth"
+MODEL_PATH = "/home/nmp002/NSCLC/jobs/Jesse_pretrained_model_test/models/Epochs 250 4-Planed ResNet18.pth"
 POOL_METHOD = 'min'
 TEST_PATIENT_IDS_STAGEII = ["S0014", "V0027", "V0142", "S0241", "S0031", "S0093", "V0198", "W0137"]
 # ----------------------------------------------------------------
