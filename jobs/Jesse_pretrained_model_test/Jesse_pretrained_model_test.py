@@ -108,7 +108,7 @@ def main():
     print(f"Found {len(stageI_indices)} Stage I patients for evaluation.")
 
     # Instantiate model
-    if MODEL_NAME == "ResNet18NPlaned":
+    if MODEL_NAME == "ResNet18":
         model = ResNet18NPlaned(data.shape, start_width=64, n_classes=1)
     elif MODEL_NAME == "CNNet":
         model = CNNet(data.shape)
