@@ -184,7 +184,7 @@ def main():
         ds_eval.augment()
         ds_eval.normalize_method = 'preset'
         ds_eval.to(device)
-        total_epochs = 250
+        total_epochs = 500
         batch_size = BATCH
 
     lr = 1e-8
