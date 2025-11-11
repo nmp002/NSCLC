@@ -76,8 +76,7 @@ def patient_wise_loader_outputs(model, dataset, patient_indices, device, pool_me
             patient_labels.append(dataset.get_patient_label(pt_idx).item())
     return torch.tensor(patient_scores), torch.tensor(patient_labels)
 
-for i in range(data.patient_count):
-    print(i, data.get_patient_name(i))
+
 
 
 
@@ -98,6 +97,9 @@ def main():
                         mask_on=True)
     data.normalize_method = 'preset'
     data.to(device)
+
+    for i in range(data.patient_count):
+        print(i, data.get_patient_name(i))
 
     # Stage II index mapping
     stageII_indices = get_patient_indices_by_name(data, TEST_PATIENT_IDS_STAGEII)
