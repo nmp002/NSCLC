@@ -1,7 +1,6 @@
 # stageII_pretrained_test_with_stageI_byID.py
 # Load pretrained model (.pth) and test on specific Stage II + Stage I patients.
-# Threshold and ROC are derived from the Stage II test set.
-# Stage I test uses the same fixed threshold.
+# Each test set now derives its own ROC-optimized threshold.
 
 import os
 import random
@@ -17,9 +16,9 @@ from my_modules.scripts.dataset import NSCLCDataset
 
 # ----------------------- Configuration --------------------------
 FAST_TEST = False
-MODEL_NAME = "ResNet18"      # must match class name
-MODEL_PATH = "/home/nmp002/NSCLC/jobs/Jesse_pretrained_model_test/models/Epochs 250 4-Planed ResNet18.pth"
-POOL_METHOD = 'min'              # or 'median'
+MODEL_NAME = "ResNet18"
+MODEL_PATH = "/home/nmp002/NSCLC_Data_for_ML/Best_ResNet18.pth"
+POOL_METHOD = 'min'
 TEST_PATIENT_IDS_STAGEII = ["S0014", "V0027", "V0142", "S0241", "S0031", "S0093", "V0198", "W0137"]
 # ----------------------------------------------------------------
 
@@ -48,13 +47,12 @@ def pool_patient_scores(outs, method='median'):
 
 
 def get_patient_indices_by_name(dataset, name_list):
-    """Find patient indices matching any name substring in name_list."""
     matched = []
     for i in range(dataset.patient_count):
         name = dataset.get_patient_name(i)
         if not isinstance(name, str):
             continue
-        if any(n in name for n in name_list):  # substring match
+        if any(n in name for n in name_list):
             matched.append(i)
     return matched
 
@@ -89,7 +87,6 @@ def main():
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    # Load dataset
     data = NSCLCDataset('NSCLC_Data_for_ML',
                         ['fad', 'nadh', 'shg', 'orr'],
                         device=torch.device('cpu'),
@@ -98,7 +95,7 @@ def main():
     data.normalize_method = 'preset'
     data.to(device)
 
-    # --- Resolve Stage II patient IDs to dataset indices ---
+    # Stage II index mapping
     stageII_indices = get_patient_indices_by_name(data, TEST_PATIENT_IDS_STAGEII)
     patient_names = {i: data.get_patient_name(i) for i in stageII_indices}
     print(f"Resolved Stage II test patients: {[(i, patient_names[i]) for i in stageII_indices]}")
@@ -107,14 +104,14 @@ def main():
     if len(stageII_indices) != len(TEST_PATIENT_IDS_STAGEII):
         print("Warning: Some specified patient IDs were not matched exactly.")
 
-    # Identify Stage I patients
+    # Stage I patients
     stageI_indices = [
         i for i in range(data.patient_count)
         if isinstance(data.get_patient_name(i), str) and data.get_patient_name(i).endswith('_StageI')
     ]
     print(f"Found {len(stageI_indices)} Stage I patients for evaluation.")
 
-    # Instantiate model
+    # Load model
     if MODEL_NAME == "ResNet18":
         model = ResNet18NPlaned(data.shape, start_width=64, n_classes=1)
     elif MODEL_NAME == "CNNet":
@@ -124,64 +121,56 @@ def main():
     else:
         raise ValueError(f"Unknown model name: {MODEL_NAME}")
 
-    # Load pretrained weights
     if not os.path.exists(MODEL_PATH):
         raise FileNotFoundError(f"Model file not found: {MODEL_PATH}")
     model.load_state_dict(torch.load(MODEL_PATH, map_location=device))
     model.to(device)
     model.eval()
 
+    out_dir = f"outputs/{MODEL_NAME}/pretrained_test_pool_{POOL_METHOD}"
+    os.makedirs(out_dir, exist_ok=True)
+
     # ---------------- Stage II TEST ----------------
     print("\n--- Stage II test evaluation ---")
-    scores_testII_pt, labels_testII_pt = patient_wise_loader_outputs(
-        model, data, stageII_indices, device, pool_method=POOL_METHOD
-    )
-
-    print("Testing patient scores:", scores_testII_pt)
-    print("Testing patient labels:", labels_testII_pt)
-    print("Num patients:", len(scores_testII_pt))
+    scores_testII_pt, labels_testII_pt = patient_wise_loader_outputs(model, data, stageII_indices, device, pool_method=POOL_METHOD)
 
     scores_testII, fig_testII = score_model(
         model, (scores_testII_pt, labels_testII_pt),
-        print_results=True, make_plot=True,
-        threshold_type='roc'
+        print_results=True, make_plot=True, threshold_type='roc'
     )
 
-    thr_test = scores_testII.get('Optimal Threshold from ROC', 0.5)
-    print(f"Stage II ROC-optimized threshold: {thr_test:.4f}")
+    thr_stageII = scores_testII.get('Optimal Threshold from ROC', 0.5)
+    print(f"Stage II ROC-optimized threshold: {thr_stageII:.4f}")
 
-    out_dir = f"outputs/{MODEL_NAME}/pretrained_test_pool_{POOL_METHOD}"
-    os.makedirs(out_dir, exist_ok=True)
-    fig_testII.savefig(os.path.join(out_dir, "test_stageII_combined.png"))
+    fig_testII.savefig(os.path.join(out_dir, "test_stageII_combined_ROCopt.png"))
     plt.close(fig_testII)
 
     with open(os.path.join(out_dir, "test_stageII_results.txt"), 'w') as f:
-        f.write(f"Pretrained {MODEL_NAME} Stage II test (pool={POOL_METHOD})\n")
-        f.write(f"Threshold (ROC-optimized on Stage II): {thr_test:.4f}\n")
+        f.write(f"Stage II test (pool={POOL_METHOD}) — ROC-optimized threshold derived from Stage II\n")
+        f.write(f"Threshold: {thr_stageII:.4f}\n")
         for key, item in scores_testII.items():
             if 'Confusion' not in key:
                 f.write(f"|\t{key:<35} {format_metric(item):>10}\t|\n")
         f.write("_____________________________________________________\n")
 
-    # ---------------- Stage I TEST ----------------
-    print("\n--- Stage I test evaluation (using Stage II threshold) ---")
-    scores_testI_pt, labels_testI_pt = patient_wise_loader_outputs(
-        model, data, stageI_indices, device, pool_method=POOL_METHOD
-    )
+    # ---------------- Stage I TEST (Independent ROC) ----------------
+    print("\n--- Stage I test evaluation (Independent ROC/Threshold) ---")
+    scores_testI_pt, labels_testI_pt = patient_wise_loader_outputs(model, data, stageI_indices, device, pool_method=POOL_METHOD)
 
     scores_testI, fig_testI = score_model(
         model, (scores_testI_pt, labels_testI_pt),
-        print_results=True, make_plot=True,
-        threshold_type='fixed',
-        threshold=float(thr_test)
+        print_results=True, make_plot=True, threshold_type='roc'
     )
 
-    fig_testI.savefig(os.path.join(out_dir, "test_stageI_combined.png"))
+    thr_stageI = scores_testI.get('Optimal Threshold from ROC', 0.5)
+    print(f"Stage I ROC-optimized threshold: {thr_stageI:.4f}")
+
+    fig_testI.savefig(os.path.join(out_dir, "test_stageI_combined_independentROC.png"))
     plt.close(fig_testI)
 
-    with open(os.path.join(out_dir, "test_stageI_results.txt"), 'w') as f:
-        f.write(f"Pretrained {MODEL_NAME} Stage I test (pool={POOL_METHOD})\n")
-        f.write(f"Threshold (fixed from Stage II test): {thr_test:.4f}\n")
+    with open(os.path.join(out_dir, "test_stageI_results_independentROC.txt"), 'w') as f:
+        f.write(f"Stage I test (pool={POOL_METHOD}) — ROC-optimized threshold derived from Stage I\n")
+        f.write(f"Threshold: {thr_stageI:.4f}\n")
         for key, item in scores_testI.items():
             if 'Confusion' not in key:
                 f.write(f"|\t{key:<35} {format_metric(item):>10}\t|\n")
