@@ -76,6 +76,10 @@ def patient_wise_loader_outputs(model, dataset, patient_indices, device, pool_me
             patient_labels.append(dataset.get_patient_label(pt_idx).item())
     return torch.tensor(patient_scores), torch.tensor(patient_labels)
 
+for i in range(data.patient_count):
+    print(i, data.get_patient_name(i))
+
+
 
 def main():
     set_seed(42)
