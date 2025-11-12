@@ -23,11 +23,10 @@ from my_modules.scripts.dataset import NSCLCDataset
 # ------------------------------------------------------------------
 # Config
 # ------------------------------------------------------------------
-FAST_TEST = False           # if True: small epochs etc. for smoke testing
-TOTAL_EPOCHS = 2500         # train for 500 epochs
+FAST_TEST = False
+TOTAL_EPOCHS = 2500
 POOL_METHODS = ['median', 'min']
 
-# fixed Stage II patient indices (must match dataset)
 TRAIN_PTS = [26, 22, 28, 24, 33, 17, 31, 25, 27, 21, 13, 16, 35, 19, 20, 15, 32]
 TEST_PTS_STAGEII = [23, 18, 34, 37, 36, 14, 29, 30]
 
@@ -50,7 +49,6 @@ def format_metric(item):
 
 
 def pool_patient_scores(outs, method='median'):
-    """Aggregate per-image outputs into a single patient score."""
     arr = np.asarray(outs, dtype=float)
     if arr.size == 0:
         return float('nan')
@@ -59,12 +57,10 @@ def pool_patient_scores(outs, method='median'):
         return float(np.min(arr))
     if m == 'median':
         return float(np.median(arr))
-    # fallback
     return float(np.median(arr))
 
 
 def patient_wise_loader_outputs(model, dataset, patient_indices, device, pool_method='median'):
-    """Return pooled patient scores and labels for given patient indices."""
     model.eval()
     patient_scores = []
     patient_labels = []
@@ -89,7 +85,6 @@ def patient_wise_loader_outputs(model, dataset, patient_indices, device, pool_me
 # Main
 # ------------------------------------------------------------------
 def main():
-    # seeds
     set_seed(42)
     random.seed(42)
     np.random.seed(42)
@@ -142,7 +137,6 @@ def main():
         total_epochs = TOTAL_EPOCHS
         batch_size = 64
 
-    # enumerate patients to find Stage I patients for later testing
     subsampler = torch.utils.data.sampler.SubsetRandomSampler(range(train_data.patient_count))
     all_pt_idx = [i for i in subsampler if len(train_data.get_patient_subset(i)) > 0]
     stageI_pts = []
@@ -152,10 +146,8 @@ def main():
         patient_names[i] = name
         if isinstance(name, str) and name.endswith('_StageI'):
             stageI_pts.append(i)
-
     print(f'Found {len(stageI_pts)} Stage I patients.')
 
-    # flatten image indices for training and Stage II test
     train_img_idx = [train_data.get_patient_subset(i) for i in TRAIN_PTS]
     train_img_idx = [im for sub in train_img_idx for im in sub]
     random.shuffle(train_img_idx)
@@ -164,11 +156,8 @@ def main():
     test_img_idx_stageII = [im for sub in test_img_idx_stageII for im in sub]
     random.shuffle(test_img_idx_stageII)
 
-    # we only need Stage I patient indices for patient-wise evaluation
-    test_pts_stageI = stageI_pts[:]  # all Stage I
+    test_pts_stageI = stageI_pts[:]
 
-    # dataloaders (image-wise) for training; test loader not strictly needed for patient-wise,
-    # but kept for completeness
     train_set = torch.utils.data.Subset(train_data, train_img_idx)
     test_set_stageII = torch.utils.data.Subset(eval_data, test_img_idx_stageII)
 
@@ -201,7 +190,6 @@ def main():
     loss_fn = nn.BCELoss()
     optimizers = [torch.optim.Adam(m.parameters(), lr=1e-8, weight_decay=0.01) for m in models]
 
-    # output dirs and files
     os.makedirs('outputs', exist_ok=True)
     for m in models:
         os.makedirs(f'outputs/{m.name}/plots', exist_ok=True)
@@ -213,6 +201,7 @@ def main():
     train_auc = [[] for _ in models]
     best_score = [0.0 for _ in models]
 
+    # --- TRAINING LOOP ---
     for ep in range(total_epochs):
         print(f'\nEpoch {ep + 1}/{total_epochs}')
         epoch_loss = [0.0 for _ in models]
@@ -242,9 +231,17 @@ def main():
                 ta.append(0.0)
 
             print(f'>>> {m.name}: Train Loss={tl[-1]:.4f}, Train AUC={ta[-1]:.4f}')
+
+            # Save best model
             if ta[-1] > best_score[i]:
                 best_score[i] = ta[-1]
                 torch.save(m.state_dict(), f'outputs/{m.name}/models/Best {m.name}.pth')
+
+            # Save periodic checkpoints every 250 epochs
+            if (ep + 1) % 250 == 0:
+                checkpoint_path = f'outputs/{m.name}/models/{m.name}_epoch{ep + 1}.pth'
+                torch.save(m.state_dict(), checkpoint_path)
+                print(f"Saved checkpoint: {checkpoint_path}")
 
     # ------------------------------------------------------------------
     # Plot training curves
@@ -264,8 +261,7 @@ def main():
         plt.close(fig)
 
     # ------------------------------------------------------------------
-    # Evaluation: training ROC/PR, Stage II test (threshold from test),
-    # and Stage I test using same threshold. For each pooling method.
+    # Evaluation
     # ------------------------------------------------------------------
     for pool_method in POOL_METHODS:
         print(f'\n=== Pooling method: {pool_method} ===')
@@ -276,15 +272,12 @@ def main():
             out_dir = f'outputs/{m.name}/pool_{pool_method}'
             os.makedirs(out_dir, exist_ok=True)
 
-            # ---- TRAIN patient-wise ROC/PR (no threshold fixing here) ----
             scores_train_pt, labels_train_pt = patient_wise_loader_outputs(
                 m, train_data, TRAIN_PTS, device, pool_method=pool_method
             )
             scores_train, fig_train = score_model(
                 m, (scores_train_pt, labels_train_pt),
-                print_results=False,
-                make_plot=True,
-                threshold_type='roc'  # used only to annotate curves + example CM
+                print_results=False, make_plot=True, threshold_type='roc'
             )
             fig_train.savefig(os.path.join(out_dir, 'train_combined.png'))
             plt.close(fig_train)
@@ -296,15 +289,13 @@ def main():
                         f.write(f'|\t{key:<35} {format_metric(item):>10}\t|\n')
                 f.write('_____________________________________________________\n')
 
-            # ---- Stage II TEST patient-wise: determine threshold from this set ----
+            # ---- Stage II TEST ----
             scores_testII_pt, labels_testII_pt = patient_wise_loader_outputs(
                 m, eval_data, TEST_PTS_STAGEII, device, pool_method=pool_method
             )
             scores_testII, fig_testII = score_model(
                 m, (scores_testII_pt, labels_testII_pt),
-                print_results=False,
-                make_plot=True,
-                threshold_type='roc'  # ROC-optimized threshold on TEST set
+                print_results=False, make_plot=True, threshold_type='roc'
             )
             fig_testII.savefig(os.path.join(out_dir, 'test_stageII_combined.png'))
             plt.close(fig_testII)
@@ -319,17 +310,14 @@ def main():
                         f.write(f'|\t{key:<35} {format_metric(item):>10}\t|\n')
                 f.write('_____________________________________________________\n')
 
-            # ---- Stage I TEST patient-wise using same threshold from Stage II test ----
+            # ---- Stage I TEST ----
             scores_testI_pt, labels_testI_pt = patient_wise_loader_outputs(
                 m, eval_data, test_pts_stageI, device, pool_method=pool_method
             )
-            # use threshold_type='fixed' with thr_test
             scores_testI, fig_testI = score_model(
                 m, (scores_testI_pt, labels_testI_pt),
-                print_results=False,
-                make_plot=True,
-                threshold_type='fixed',
-                threshold=float(thr_test)
+                print_results=False, make_plot=True,
+                threshold_type='fixed', threshold=float(thr_test)
             )
             fig_testI.savefig(os.path.join(out_dir, 'test_stageI_combined.png'))
             plt.close(fig_testI)
