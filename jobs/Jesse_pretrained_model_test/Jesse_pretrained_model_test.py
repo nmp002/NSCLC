@@ -1,6 +1,6 @@
 # stageII_pretrained_test_with_stageI_byID.py
 # Load pretrained model (.pth) and test on specific Stage II + Stage I patients.
-# Each test set now derives its own ROC-optimized threshold.
+# Each test set now derives its own ROC-optimized threshold and saves patient probabilities.
 
 import os
 import random
@@ -77,9 +77,6 @@ def patient_wise_loader_outputs(model, dataset, patient_indices, device, pool_me
     return torch.tensor(patient_scores), torch.tensor(patient_labels)
 
 
-
-
-
 def main():
     set_seed(42)
     random.seed(42)
@@ -97,9 +94,6 @@ def main():
                         mask_on=True)
     data.normalize_method = 'preset'
     data.to(device)
-
-    for i in range(data.patient_count):
-        print(i, data.get_patient_name(i))
 
     # Stage II index mapping
     stageII_indices = get_patient_indices_by_name(data, TEST_PATIENT_IDS_STAGEII)
@@ -140,6 +134,13 @@ def main():
     print("\n--- Stage II test evaluation ---")
     scores_testII_pt, labels_testII_pt = patient_wise_loader_outputs(model, data, stageII_indices, device, pool_method=POOL_METHOD)
 
+    # Save per-patient probabilities
+    with open(os.path.join(out_dir, "test_stageII_probabilities.txt"), 'w') as pf:
+        pf.write("Patient Index\tPatient Name\tProbability\tLabel\n")
+        for idx, score, label in zip(stageII_indices, scores_testII_pt, labels_testII_pt):
+            name = data.get_patient_name(idx)
+            pf.write(f"{idx}\t{name}\t{score.item():.4f}\t{int(label)}\n")
+
     scores_testII, fig_testII = score_model(
         model, (scores_testII_pt, labels_testII_pt),
         print_results=True, make_plot=True, threshold_type='roc'
@@ -162,6 +163,13 @@ def main():
     # ---------------- Stage I TEST (Independent ROC) ----------------
     print("\n--- Stage I test evaluation (Independent ROC/Threshold) ---")
     scores_testI_pt, labels_testI_pt = patient_wise_loader_outputs(model, data, stageI_indices, device, pool_method=POOL_METHOD)
+
+    # Save per-patient probabilities
+    with open(os.path.join(out_dir, "test_stageI_probabilities.txt"), 'w') as pf:
+        pf.write("Patient Index\tPatient Name\tProbability\tLabel\n")
+        for idx, score, label in zip(stageI_indices, scores_testI_pt, labels_testI_pt):
+            name = data.get_patient_name(idx)
+            pf.write(f"{idx}\t{name}\t{score.item():.4f}\t{int(label)}\n")
 
     scores_testI, fig_testI = score_model(
         model, (scores_testI_pt, labels_testI_pt),
