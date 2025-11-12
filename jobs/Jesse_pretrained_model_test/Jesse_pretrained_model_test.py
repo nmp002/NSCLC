@@ -236,6 +236,45 @@ def main():
                 f.write(f"|\t{key:<35} {format_metric(item):>10}\t|\n")
         f.write("_____________________________________________________\n")
 
+
+    # ---------------- Stage II TEST (Fixed threshold = 0.5788) ----------------
+    print("\n--- Stage II test evaluation (Fixed threshold = 0.5788) ---")
+    scores_testII_fixed, fig_testII_fixed = score_model(
+        model, (scores_testII_pt, labels_testII_pt),
+        print_results=True, make_plot=True,
+        threshold_type='fixed', threshold=0.5788
+    )
+
+    fig_testII_fixed.savefig(os.path.join(out_dir, "test_stageII_combined_fixedThr_0.5788.png"))
+    plt.close(fig_testII_fixed)
+
+    with open(os.path.join(out_dir, "test_stageII_results_fixedThr_0.5788.txt"), 'w') as f:
+        f.write(f"Stage II test (pool={POOL_METHOD}) — Fixed threshold = 0.5788\n")
+        for key, item in scores_testII_fixed.items():
+            if 'Confusion' not in key:
+                f.write(f"|\t{key:<35} {format_metric(item):>10}\t|\n")
+        f.write("_____________________________________________________\n")
+
+
+    # ---------------- Stage I TEST (Fixed threshold = 0.5788) ----------------
+    print("\n--- Stage I test evaluation (Fixed threshold = 0.5788) ---")
+    scores_testI_fixed, fig_testI_fixed = score_model(
+        model, (scores_testI_pt, labels_testI_pt),
+        print_results=True, make_plot=True,
+        threshold_type='fixed', threshold=0.5788
+    )
+
+    fig_testI_fixed.savefig(os.path.join(out_dir, "test_stageI_combined_fixedThr_0.5788.png"))
+    plt.close(fig_testI_fixed)
+
+    with open(os.path.join(out_dir, "test_stageI_results_fixedThr_0.5788.txt"), 'w') as f:
+        f.write(f"Stage I test (pool={POOL_METHOD}) — Fixed threshold = 0.5788\n")
+        for key, item in scores_testI_fixed.items():
+            if 'Confusion' not in key:
+                f.write(f"|\t{key:<35} {format_metric(item):>10}\t|\n")
+        f.write("_____________________________________________________\n")
+
+
     print(f"\nResults saved to: {out_dir}")
 
 
