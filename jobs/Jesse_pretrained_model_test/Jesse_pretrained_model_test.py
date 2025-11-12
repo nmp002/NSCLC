@@ -309,6 +309,40 @@ def main():
 
     print(f"\nCombined Stage I + Stage II test results saved to: {out_dir}")
 
+    # ---------------- Combined Stage I + Stage II TEST (Fixed Threshold 0.5) ----------------
+    print("\n--- Combined Stage I + Stage II test evaluation (Fixed Threshold 0.5) ---")
+
+    combined_indices = stageII_indices + stageI_indices
+    scores_combined_pt, labels_combined_pt = patient_wise_loader_outputs(
+        model, data, combined_indices, device, pool_method=POOL_METHOD
+    )
+
+    # Save per-patient probabilities
+    with open(os.path.join(out_dir, "test_combined_probabilities0.5.txt"), 'w') as pf:
+        pf.write("Patient Index\tPatient Name\tProbability\tLabel\n")
+        for idx, score, label in zip(combined_indices, scores_combined_pt, labels_combined_pt):
+            name = data.get_patient_name(idx)
+            pf.write(f"{idx}\t{name}\t{score.item():.4f}\t{int(label)}\n")
+
+    scores_combined, fig_combined = score_model(
+        model, (scores_combined_pt, labels_combined_pt),
+        print_results=True, make_plot=True,
+        threshold_type='fixed',
+        threshold=0.5
+    )
+
+    fig_combined.savefig(os.path.join(out_dir, "test_combined_fixedThreshold0.5.png"))
+    plt.close(fig_combined)
+
+    with open(os.path.join(out_dir, "test_combined_results_fixedThreshold0.5.txt"), 'w') as f:
+        f.write(f"Combined Stage I + Stage II test (pool={POOL_METHOD}) — Fixed threshold = 0.5\n")
+        for key, item in scores_combined.items():
+            if 'Confusion' not in key:
+                f.write(f"|\t{key:<35} {format_metric(item):>10}\t|\n")
+        f.write("_____________________________________________________\n")
+
+    print(f"\nCombined Stage I + Stage II test results saved to: {out_dir}")
+
 
     print(f"\nResults saved to: {out_dir}")
 
