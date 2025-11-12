@@ -99,7 +99,14 @@ def score_model(model, loader_or_tensors, loss_fn=None, print_results=False,
         fig, (ax1, ax2, ax3) = _plt.subplots(1, 3, figsize=(20, 5))
         # ROC
         RocCurveDisplay(fpr=fpr, tpr=tpr, roc_auc=scores['ROC-AUC']).plot(ax=ax1)
+        ax1.scatter(fpr, tpr, color='red', s=25, zorder=5, label='ROC points')
         ax1.set_title('ROC Curve')
+        ax1.legend(loc='lower right')
+
+        if 'Threshold Used' in scores:
+            thr_idx = np.argmin(np.abs(roc_thresholds - scores['Threshold Used']))
+            ax1.scatter(fpr[thr_idx], tpr[thr_idx], color='black', marker='x', s=50, label='Selected threshold')
+
         # Precision-Recall
         PrecisionRecallDisplay.from_predictions(targets, outs).plot(ax=ax2)
         ax2.set_title('Precision-Recall Curve')
