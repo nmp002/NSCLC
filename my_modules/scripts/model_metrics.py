@@ -105,7 +105,7 @@ def score_model(model, loader_or_tensors, loss_fn=None, print_results=False,
 
         if 'Threshold Used' in scores:
             thr_idx = np.argmin(np.abs(roc_thresholds - scores['Threshold Used']))
-            ax1.scatter(fpr[thr_idx], tpr[thr_idx], color='black', marker='x', s=50, label='Selected threshold')
+            ax1.scatter(fpr[thr_idx], tpr[thr_idx], color='black', marker='x', s=100, label='Selected threshold')
 
         # Precision-Recall
         PrecisionRecallDisplay.from_predictions(targets, outs).plot(ax=ax2)
