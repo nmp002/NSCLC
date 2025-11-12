@@ -17,7 +17,7 @@ from my_modules.scripts.dataset import NSCLCDataset
 # ----------------------- Configuration --------------------------
 FAST_TEST = False
 MODEL_NAME = "ResNet18"
-MODEL_PATH = "/home/nmp002/NSCLC/jobs/Jesse_pretrained_model_test/models/Epochs 250 4-Planed ResNet18 v2.pth"
+MODEL_PATH = "/home/nmp002/NSCLC/jobs/Jesse_pretrained_model_test/models/Epochs 250 4-Planed ResNet18.pth"
 POOL_METHOD = 'min'
 TEST_PATIENT_IDS_STAGEII = ["S0014", "V0027", "V0142", "S0241", "S0031", "S0093", "V0198", "W0137"]
 # ----------------------------------------------------------------
@@ -129,6 +129,52 @@ def main():
 
     out_dir = f"outputs/{MODEL_NAME}/pretrained_test_pool_{POOL_METHOD}"
     os.makedirs(out_dir, exist_ok=True)
+
+    # ---------------- Stage II TRAINING (complement of test set) ----------------
+    print("\n--- Stage II training evaluation ---")
+
+    # Determine which Stage II patients are NOT in the test set
+    all_stageII_indices = [
+        i for i in range(data.patient_count)
+        if isinstance(data.get_patient_name(i), str)
+        and not data.get_patient_name(i).endswith('_StageI')
+    ]
+    train_stageII_indices = [i for i in all_stageII_indices if i not in stageII_indices]
+
+    print(f"Training Stage II patients: {[(i, data.get_patient_name(i)) for i in train_stageII_indices]}")
+
+    # Compute patient-level outputs
+    scores_train_pt, labels_train_pt = patient_wise_loader_outputs(
+        model, data, train_stageII_indices, device, pool_method=POOL_METHOD
+    )
+
+    # Save per-patient probabilities
+    with open(os.path.join(out_dir, "train_stageII_probabilities.txt"), 'w') as pf:
+        pf.write("Patient Index\tPatient Name\tProbability\tLabel\n")
+        for idx, score, label in zip(train_stageII_indices, scores_train_pt, labels_train_pt):
+            name = data.get_patient_name(idx)
+            pf.write(f"{idx}\t{name}\t{score.item():.4f}\t{int(label)}\n")
+
+    # Run ROC analysis for training set (independent ROC-derived threshold)
+    scores_train, fig_train = score_model(
+        model, (scores_train_pt, labels_train_pt),
+        print_results=True, make_plot=True, threshold_type='roc'
+    )
+
+    thr_train = scores_train.get('Optimal Threshold from ROC', 0.5)
+    print(f"Stage II training ROC-optimized threshold: {thr_train:.4f}")
+
+    # Save plots and metrics
+    fig_train.savefig(os.path.join(out_dir, "train_stageII_combined_ROCopt.png"))
+    plt.close(fig_train)
+
+    with open(os.path.join(out_dir, "train_stageII_results.txt"), 'w') as f:
+        f.write(f"Stage II training (pool={POOL_METHOD}) — ROC-optimized threshold derived from training set\n")
+        f.write(f"Threshold: {thr_train:.4f}\n")
+        for key, item in scores_train.items():
+            if 'Confusion' not in key:
+                f.write(f"|\t{key:<35} {format_metric(item):>10}\t|\n")
+        f.write("_____________________________________________________\n")
 
     # ---------------- Stage II TEST ----------------
     print("\n--- Stage II test evaluation ---")
