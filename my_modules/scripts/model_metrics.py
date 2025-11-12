@@ -142,7 +142,7 @@ def score_model(model, loader_or_tensors, loss_fn=None, print_results=False,
             scores['Loss'] = loss_fn(outs, targets.unsqueeze(1)).item()
 
     # ROC and PR metrics (threshold-independent)
-    fpr, tpr, roc_thresholds = roc_curve(targets, outs, pos_label=1)
+    fpr, tpr, roc_thresholds = roc_curve(targets, outs, pos_label=1, drop_intermediate=False)
     scores['ROC-AUC'] = auc(fpr, tpr)
 
     precision, recall, pr_thresholds = precision_recall_curve(targets, outs)
@@ -168,7 +168,7 @@ def score_model(model, loader_or_tensors, loss_fn=None, print_results=False,
 
     if thr is not None:
         preds = torch.zeros_like(outs)
-        preds[outs > thr] = 1
+        preds[outs >= thr] = 1
         scores['Threshold Used'] = float(thr)
         scores['Accuracy'] = accuracy_score(targets, preds)
         scores['Balanced Accuracy'] = balanced_accuracy_score(targets, preds)
