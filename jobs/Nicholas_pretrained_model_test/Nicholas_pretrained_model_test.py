@@ -141,6 +141,40 @@ def main():
     data.normalize_method = 'preset'
     data.to(device)
 
+    print("\n==================== LABEL CHECK ====================")
+
+    def check_labels(name, indices):
+        print(f"\n{name} (n={len(indices)}):")
+        zeros, ones = 0, 0
+        for idx in indices:
+            label = int(data.get_patient_label(idx).item())
+            if label == 0:
+                zeros += 1
+            else:
+                ones += 1
+            print(f"  idx {idx:<3}  label={label}   name={data.get_patient_name(idx)}")
+        print(f"  --> Class counts: 0={zeros}, 1={ones}")
+
+    # Stage II TRAIN
+    check_labels("TRAIN_PTS (Stage II training)", TRAIN_PTS)
+
+    # Stage II TEST
+    check_labels("TEST_PTS_STAGEII (Stage II test)", TEST_PTS_STAGEII)
+
+    # Stage I patients
+    stageI_indices = [
+        i for i in range(data.patient_count)
+        if isinstance(data.get_patient_name(i), str)
+           and data.get_patient_name(i).endswith('_StageI')
+    ]
+    check_labels("Stage I patients", stageI_indices)
+
+    # Combined
+    combined_indices = TRAIN_PTS + TEST_PTS_STAGEII + stageI_indices
+    check_labels("Combined TRAIN + TEST-II + Stage I", combined_indices)
+
+    print("======================================================\n")
+
     # Stage I patients = any patient whose Slide Name ends with '_StageI'
     stageI_indices = [
         i for i in range(data.patient_count)
