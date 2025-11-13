@@ -325,9 +325,9 @@ def main():
         f.write("_____________________________________________________\n")
 
     # ============================================================
-    # 4) Stage II TEST with fixed threshold = 0.5788
+    # 4) Stage II TEST with fixed threshold = 0.1697
     # ============================================================
-    print("\n--- Stage II test evaluation (Fixed threshold = 0.5788) ---")
+    print("\n--- Stage II test evaluation (Fixed threshold = 0.1697) ---")
 
     scores_testII_fixed, fig_testII_fixed = score_model(
         model, (scores_testII_pt, labels_testII_pt),
@@ -335,10 +335,10 @@ def main():
         threshold_type='fixed', threshold=FIXED_THRESHOLD_MAIN
     )
 
-    fig_testII_fixed.savefig(os.path.join(out_dir, "test_stageII_combined_fixedThr_0.5788.png"))
+    fig_testII_fixed.savefig(os.path.join(out_dir, "test_stageII_combined_fixedThr_0.1697.png"))
     plt.close(fig_testII_fixed)
 
-    with open(os.path.join(out_dir, "test_stageII_results_fixedThr_0.5788.txt"), 'w') as f:
+    with open(os.path.join(out_dir, "test_stageII_results_fixedThr_0.1697.txt"), 'w') as f:
         f.write(f"Stage II test (pool={POOL_METHOD}) — Fixed threshold = {FIXED_THRESHOLD_MAIN:.4f}\n")
         for key, item in scores_testII_fixed.items():
             if 'Confusion' not in key:
@@ -346,9 +346,9 @@ def main():
         f.write("_____________________________________________________\n")
 
     # ============================================================
-    # 5) Stage I TEST with fixed threshold = 0.5788
+    # 5) Stage I TEST with fixed threshold = 0.1697
     # ============================================================
-    print("\n--- Stage I test evaluation (Fixed threshold = 0.5788) ---")
+    print("\n--- Stage I test evaluation (Fixed threshold = 0.1697) ---")
 
     scores_testI_fixed, fig_testI_fixed = score_model(
         model, (scores_testI_pt, labels_testI_pt),
@@ -356,10 +356,10 @@ def main():
         threshold_type='fixed', threshold=FIXED_THRESHOLD_MAIN
     )
 
-    fig_testI_fixed.savefig(os.path.join(out_dir, "test_stageI_combined_fixedThr_0.5788.png"))
+    fig_testI_fixed.savefig(os.path.join(out_dir, "test_stageI_combined_fixedThr_0.1697.png"))
     plt.close(fig_testI_fixed)
 
-    with open(os.path.join(out_dir, "test_stageI_results_fixedThr_0.5788.txt"), 'w') as f:
+    with open(os.path.join(out_dir, "test_stageI_results_fixedThr_0.1697.txt"), 'w') as f:
         f.write(f"Stage I test (pool={POOL_METHOD}) — Fixed threshold = {FIXED_THRESHOLD_MAIN:.4f}\n")
         for key, item in scores_testI_fixed.items():
             if 'Confusion' not in key:
@@ -367,9 +367,9 @@ def main():
         f.write("_____________________________________________________\n")
 
     # ============================================================
-    # 6) Combined Stage I + Stage II TEST (Fixed Threshold 0.5788)
+    # 6) Combined Stage I + Stage II TEST (Fixed Threshold 0.1697)
     # ============================================================
-    print("\n--- Combined Stage I + Stage II test evaluation (Fixed Threshold 0.5788) ---")
+    print("\n--- Combined Stage I + Stage II test evaluation (Fixed Threshold 0.1697) ---")
 
     combined_indices = stageII_test_indices + stageI_indices
     scores_combined_pt, labels_combined_pt, df_combined_img, df_combined_pooled = compute_patient_and_image_outputs(
@@ -377,11 +377,11 @@ def main():
     )
 
     # Save per-image and per-patient pooled outputs
-    df_combined_img.to_csv(os.path.join(out_dir, "test_combined_image_outputs_0.5788.csv"), index=False)
-    df_combined_pooled.to_csv(os.path.join(out_dir, "test_combined_patient_pooled_outputs_0.5788.csv"), index=False)
+    df_combined_img.to_csv(os.path.join(out_dir, "test_combined_image_outputs_0.1697.csv"), index=False)
+    df_combined_pooled.to_csv(os.path.join(out_dir, "test_combined_patient_pooled_outputs_0.1697.csv"), index=False)
 
     # Simple text probabilities
-    with open(os.path.join(out_dir, "test_combined_probabilities_0.5788.txt"), 'w') as pf:
+    with open(os.path.join(out_dir, "test_combined_probabilities_0.1697.txt"), 'w') as pf:
         pf.write("Patient Index\tPatient Name\tPooled Probability\tLabel\n")
         for _, row in df_combined_pooled.iterrows():
             pf.write(f"{int(row['patient_index'])}\t{row['patient_name']}\t{row['pooled_output']:.4f}\t{int(row['label'])}\n")
@@ -393,10 +393,10 @@ def main():
         threshold=FIXED_THRESHOLD_MAIN
     )
 
-    fig_combined.savefig(os.path.join(out_dir, "test_combined_fixedThreshold_0.5788.png"))
+    fig_combined.savefig(os.path.join(out_dir, "test_combined_fixedThreshold_0.1697.png"))
     plt.close(fig_combined)
 
-    with open(os.path.join(out_dir, "test_combined_results_fixedThreshold_0.5788.txt"), 'w') as f:
+    with open(os.path.join(out_dir, "test_combined_results_fixedThreshold_0.1697.txt"), 'w') as f:
         f.write(f"Combined Stage I + Stage II test (pool={POOL_METHOD}) — Fixed threshold = {FIXED_THRESHOLD_MAIN:.4f}\n")
         for key, item in scores_combined.items():
             if 'Confusion' not in key:
