@@ -386,7 +386,7 @@ TODO: Update doc
                     y = torch.tensor(1 if self.features['FOLLOWUP DATA']['Status (NR/R)'].iloc[slide_idx] == 'R'
                                      else 0, dtype=torch.float32, device=self.device)
                 case 'Metastases':
-                    y = torch.tensor(1 if self.features['FOLLOWUP DATA']['Status (Mets/NM)'].iloc[slide_idx] == 'M'
+                    y = torch.tensor(1 if self.features['FOLLOWUP DATA']['Status (Mets/NM)'].iloc[slide_idx] == 'METS'
                                      else 0, dtype=torch.float32, device=self.device)
                 case 'Mask':
                     # Load mask (if on or label)
@@ -570,7 +570,7 @@ TODO: Update doc
                 y = torch.tensor(1 if self.features['FOLLOWUP DATA'].at[pt_index, 'Status (NR/R)'] == 'R' else 0,
                                  dtype=torch.float32, device=self.device)
             case 'Metastases':
-                y = torch.tensor(1 if self.features['FOLLOWUP DATA'].at[pt_index, 'Status (Mets/NM)'] == 'M' else 0,
+                y = torch.tensor(1 if self.features['FOLLOWUP DATA'].at[pt_index, 'Status (Mets/NM)'] == 'METS' else 0,
                                  dtype=torch.float32, device=self.device)
             case 'Mask':
                 # Load mask (if on or label)
