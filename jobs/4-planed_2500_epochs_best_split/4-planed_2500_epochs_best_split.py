@@ -25,7 +25,7 @@ from my_modules.scripts.dataset import NSCLCDataset
 # Config
 # ------------------------------------------------------------------
 FAST_TEST = False            # if True: small epochs etc. for smoke testing
-TOTAL_EPOCHS = 2500          # train for 2500 epochs
+TOTAL_EPOCHS = 250          # train for 2500 epochs
 SAVE_INTERVAL = 250          # save models and plots every 250 epochs
 
 # fixed Stage II patient indices (must match dataset)
@@ -86,7 +86,7 @@ def main():
             tvt.RandomHorizontalFlip(p=0.25),
             tvt.RandomRotation(degrees=(-180, 180))
         ])
-        eval_data.augment()
+
         eval_data.normalize_method = 'preset'
         eval_data.to(device)
         total_epochs = TOTAL_EPOCHS
