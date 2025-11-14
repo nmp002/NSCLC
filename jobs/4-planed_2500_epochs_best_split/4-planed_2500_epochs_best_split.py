@@ -125,7 +125,7 @@ def main():
     # Training setup
     # ------------------------------------------------------------------
     loss_fn = nn.BCELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-8, weight_decay=0.01)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4, weight_decay=0.01)
 
     # output dirs and files
     os.makedirs('outputs', exist_ok=True)
@@ -205,7 +205,7 @@ def main():
         epoch_num = ep + 1
         if (epoch_num % SAVE_INTERVAL == 0) or (epoch_num == total_epochs):
             # Save model
-            model_path = f'outputs/{model.name}/models/{model.name}_epoch{epoch_num}.pth'
+            model_path = f'outputs/{model.name}/models/{model.name}_lr_1e-4_epoch{epoch_num}.pth'
             torch.save(model.state_dict(), model_path)
             print(f'Saved model checkpoint: {model_path}')
 
