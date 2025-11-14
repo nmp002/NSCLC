@@ -61,53 +61,58 @@ def pool_patient_scores(prob_list, method="min"):
 
 def compute_patient_and_image_outputs(model, dataset, patient_indices, device, pool_method="min"):
     """
-    Compute:
-      • raw image outputs for each image of each patient
-      • pooled patient-level probs
-      • return: tensor of pooled probs, tensor of labels, df_img, df_pt
+    EXACT BEHAVIOR from stageII_splits_min_median.py:
+        • One row per patient (not per image)
+        • 'image_outputs' column lists ALL FOV outputs as semicolon-separated strings
+        • Pooled patient score (min or median)
     """
+
     model.eval()
 
-    img_rows = []
-    pt_rows = []
+    patient_probs = []
+    patient_labels = []
+    rows = []
 
     with torch.no_grad():
-        for pt in patient_indices:
-            img_idxs = dataset.get_patient_subset(pt)
-            if len(img_idxs) == 0:
+        for pt_idx in patient_indices:
+
+            img_indices = dataset.get_patient_subset(pt_idx)
+            if len(img_indices) == 0:
                 continue
 
-            name = dataset.get_patient_name(pt)
-            label = int(dataset.get_patient_label(pt).item())
-            im_probs = []
+            name = dataset.get_patient_name(pt_idx)
+            label = int(dataset.get_patient_label(pt_idx).item())
 
-            for im in img_idxs:
-                x, _ = dataset[im]
+            outs = []
+            for im_idx in img_indices:
+                x, _ = dataset[im_idx]
                 x = x.unsqueeze(0).to(device)
                 prob = float(model(x).cpu().detach().item())
-                im_probs.append(prob)
+                outs.append(prob)
 
-                img_rows.append({
-                    "patient_index": pt,
-                    "patient_name": name,
-                    "image_index": im,
-                    "image_output": prob,
-                    "label": label,
-                })
+            pooled = pool_patient_scores(outs, method=pool_method)
 
-            pooled = pool_patient_scores(im_probs, method=pool_method)
+            patient_probs.append(pooled)
+            patient_labels.append(label)
 
-            pt_rows.append({
-                "patient_index": pt,
-                "patient_name": name,
-                "pooled_output": pooled,
+            rows.append({
+                "patient_index": int(pt_idx),
+                "patient_name": str(name),
                 "label": label,
+                "n_images": len(outs),
+                "image_outputs": ";".join([f"{v:.6f}" for v in outs]),
+                "pool_method": pool_method,
+                "pooled_output": f"{pooled:.6f}",
             })
 
-    pt_probs = torch.tensor([r["pooled_output"] for r in pt_rows], dtype=torch.float32)
-    pt_labels = torch.tensor([r["label"] for r in pt_rows], dtype=torch.int64)
+    df_img = pd.DataFrame(rows)     # one row per patient
+    df_pt = df_img.copy()           # identical for compatibility
 
-    return pt_probs, pt_labels, pd.DataFrame(img_rows), pd.DataFrame(pt_rows)
+    pt_probs = torch.tensor(patient_probs, dtype=torch.float32)
+    pt_labels = torch.tensor(patient_labels, dtype=torch.int64)
+
+    return pt_probs, pt_labels, df_img, df_pt
+
 
 
 def instantiate_model_by_name(name, data_shape):
