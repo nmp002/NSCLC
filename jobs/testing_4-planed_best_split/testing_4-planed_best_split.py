@@ -155,7 +155,7 @@ def main():
     print("Loading dataset ...")
     data = NSCLCDataset(
         'NSCLC_Data_for_ML',
-        ['fad', 'nadh', 'shg', 'orr', 'intensity'],
+        ['fad', 'nadh', 'shg', 'orr'],
         device=torch.device('cpu'),
         label='Metastases',
         mask_on=True
