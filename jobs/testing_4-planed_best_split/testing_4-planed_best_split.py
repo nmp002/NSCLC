@@ -27,7 +27,7 @@ from my_modules.scripts.dataset import NSCLCDataset
 # ---------------------------------------------------------
 # CONFIG
 # ---------------------------------------------------------
-POOL_METHOD = 'median'        # 'min' or 'median'
+POOL_METHOD = 'min'        # 'min' or 'median'
 MODELS_DIR = "/home/nmp002/NSCLC/jobs/testing_4-planed_best_split/models/"      # where your *.pth files are stored
 
 # Training split EXACTLY as before
