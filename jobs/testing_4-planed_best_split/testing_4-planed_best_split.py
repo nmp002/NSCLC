@@ -160,6 +160,8 @@ def main():
         label='Metastases',
         mask_on=True
     )
+
+    data.augment()
     data.normalize_method = 'preset'
     data.to(device)
 
