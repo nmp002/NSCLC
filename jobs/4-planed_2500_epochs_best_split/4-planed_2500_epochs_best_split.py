@@ -25,7 +25,7 @@ from my_modules.scripts.dataset import NSCLCDataset
 # Config
 # ------------------------------------------------------------------
 FAST_TEST = False            # if True: small epochs etc. for smoke testing
-TOTAL_EPOCHS = 250          # train for 2500 epochs
+TOTAL_EPOCHS = 2500          # train for 2500 epochs
 SAVE_INTERVAL = 250          # save models and plots every 250 epochs
 
 # fixed Stage II patient indices (must match dataset)
@@ -125,7 +125,7 @@ def main():
     # Training setup
     # ------------------------------------------------------------------
     loss_fn = nn.BCELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-5, weight_decay=0.05)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-5, weight_decay=0.02)
 
     # output dirs and files
     os.makedirs('outputs', exist_ok=True)
@@ -205,7 +205,7 @@ def main():
         epoch_num = ep + 1
         if (epoch_num % SAVE_INTERVAL == 0) or (epoch_num == total_epochs):
             # Save model
-            model_path = f'outputs/{model.name}/models/{model.name}_lr_1e-5_wd_0.05_epoch{epoch_num}.pth'
+            model_path = f'outputs/{model.name}/models/{model.name}_lr_1e-5_wd_0.02_epoch{epoch_num}.pth'
             torch.save(model.state_dict(), model_path)
             print(f'Saved model checkpoint: {model_path}')
 
