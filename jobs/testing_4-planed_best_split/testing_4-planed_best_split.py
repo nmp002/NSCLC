@@ -27,7 +27,7 @@ from my_modules.scripts.dataset import NSCLCDataset
 # ---------------------------------------------------------
 # CONFIG
 # ---------------------------------------------------------
-POOL_METHOD = 'mean'        # 'min', 'max' or 'median'
+POOL_METHOD = 'majority'        # 'min', 'max', 'majority', 'mean', or 'median'
 MODELS_DIR = "/home/nmp002/NSCLC/jobs/testing_4-planed_best_split/models/"
 
 TRAIN_PTS = [26, 22, 28, 24, 33, 17, 31, 25,
@@ -56,15 +56,34 @@ def pool_patient_scores(prob_list, method="min"):
     arr = np.asarray(prob_list, dtype=float)
     if arr.size == 0:
         return float("nan")
+
     method = method.lower()
-    if method == "median":
-        return float(np.median(arr))
-    if method == "max":
-        return float(np.max(arr))
-    if method == "mean" or method == "avg":
+
+    # --------- MEAN / AVERAGE POOLING ---------
+    if method in ("mean", "avg"):
         return float(np.mean(arr))
 
-    return float(np.min(arr))    # default
+    # --------- MEDIAN POOLING ---------
+    if method == "median":
+        return float(np.median(arr))
+
+    # --------- MAX POOLING ---------
+    if method == "max":
+        return float(np.max(arr))
+
+    # --------- MAJORITY VOTE POOLING ---------
+    if method in ("majority", "vote", "mv"):
+        # Convert probs → hard predictions
+        preds = (arr >= 0.5).astype(int)
+        ones = preds.sum()
+        zeros = len(preds) - ones
+
+        # If tie, choose 1 (can be changed)
+        return 1.0 if ones >= zeros else 0.0
+
+    # --------- DEFAULT = MIN POOLING ---------
+    return float(np.min(arr))
+
 
 
 def compute_patient_and_image_outputs(model, dataset, patient_indices, device, pool_method="min"):
