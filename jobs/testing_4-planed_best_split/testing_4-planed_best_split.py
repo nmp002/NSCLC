@@ -27,7 +27,7 @@ from my_modules.scripts.dataset import NSCLCDataset
 # ---------------------------------------------------------
 # CONFIG
 # ---------------------------------------------------------
-POOL_METHOD = 'min'        # 'min' or 'median'
+POOL_METHOD = 'max'        # 'min', 'max' or 'median'
 MODELS_DIR = "/home/nmp002/NSCLC/jobs/testing_4-planed_best_split/models/"      # where your *.pth files are stored
 
 # Training split EXACTLY as before
@@ -54,9 +54,15 @@ def pool_patient_scores(prob_list, method="min"):
     arr = np.asarray(prob_list, dtype=float)
     if arr.size == 0:
         return float("nan")
+
+    method = method.lower()
+
     if method == "median":
         return float(np.median(arr))
-    return float(np.min(arr))  # default = min pooling
+    if method == "max":
+        return float(np.max(arr))
+    return float(np.min(arr))    # default = min
+
 
 
 def compute_patient_and_image_outputs(model, dataset, patient_indices, device, pool_method="min"):
