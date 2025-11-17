@@ -27,7 +27,7 @@ from my_modules.scripts.dataset import NSCLCDataset
 # ---------------------------------------------------------
 # CONFIG
 # ---------------------------------------------------------
-POOL_METHOD = 'median'        # 'min', 'max' or 'median'
+POOL_METHOD = 'mean'        # 'min', 'max' or 'median'
 MODELS_DIR = "/home/nmp002/NSCLC/jobs/testing_4-planed_best_split/models/"
 
 TRAIN_PTS = [26, 22, 28, 24, 33, 17, 31, 25,
@@ -61,6 +61,9 @@ def pool_patient_scores(prob_list, method="min"):
         return float(np.median(arr))
     if method == "max":
         return float(np.max(arr))
+    if method == "mean" or method == "avg":
+        return float(np.mean(arr))
+
     return float(np.min(arr))    # default
 
 
