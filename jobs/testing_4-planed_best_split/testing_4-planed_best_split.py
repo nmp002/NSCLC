@@ -253,7 +253,7 @@ def main():
                 (pt_probs, pt_labels),
                 print_results=True,
                 make_plot=True,
-                threshold_type='roc'
+                threshold_type='fixed'
             )
             fig_roc.savefig(os.path.join(out_test, "ROC_curve.png"))
             plt.close(fig_roc)
