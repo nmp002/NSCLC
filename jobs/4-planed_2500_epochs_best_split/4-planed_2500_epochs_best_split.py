@@ -26,7 +26,7 @@ from my_modules.scripts.dataset import NSCLCDataset
 # ------------------------------------------------------------------
 FAST_TEST = False            # if True: small epochs etc. for smoke testing
 TOTAL_EPOCHS = 2500          # train for 2500 epochs
-SAVE_INTERVAL = 250          # save models and plots every 250 epochs
+SAVE_INTERVAL = 500          # save models and plots every 250 epochs
 
 # fixed Stage II patient indices (must match dataset)
 TRAIN_PTS = [26, 22, 28, 24, 33, 17, 31, 25, 27, 21, 13, 16, 35, 19, 20, 15, 32]
