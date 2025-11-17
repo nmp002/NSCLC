@@ -125,7 +125,7 @@ def main():
     # Training setup
     # ------------------------------------------------------------------
     loss_fn = nn.BCELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-5, weight_decay=0.02)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-5, weight_decay=0.1)
 
     # output dirs and files
     os.makedirs('outputs', exist_ok=True)
