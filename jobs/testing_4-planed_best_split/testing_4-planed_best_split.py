@@ -239,6 +239,107 @@ def main():
                 if "Confusion" not in key:
                     f.write(f"{key:<40} {format_metric(item)}\n")
 
+        # =========================================================
+        # CONSTANT THRESHOLD TESTING: 0.5
+        # =========================================================
+
+        CONST_THR = 0.5
+
+        # -----------------------------
+        # Stage II Test Set (held-out)
+        # -----------------------------
+        TEST_PTS_STAGEII = [23, 18, 34, 37, 36, 14, 29, 30]
+        out_stageII = os.path.join(out_dir, "const_thresh_0.5_stageII")
+        os.makedirs(out_stageII, exist_ok=True)
+
+        pt_probs, pt_labels, df_img, df_pt = compute_patient_and_image_outputs(
+            model, data, TEST_PTS_STAGEII, device, pool_method=POOL_METHOD
+        )
+
+        # save CSVs
+        df_img.to_csv(os.path.join(out_stageII, "image_outputs.csv"), index=False)
+        df_pt.to_csv(os.path.join(out_stageII, "patient_outputs.csv"), index=False)
+
+        # compute accuracy, sens, spec at constant threshold
+        preds = (pt_probs.numpy() >= CONST_THR).astype(int)
+        labels = pt_labels.numpy()
+
+        acc  = np.mean(preds == labels)
+        sens = np.sum((preds == 1) & (labels == 1)) / max(np.sum(labels == 1), 1)
+        spec = np.sum((preds == 0) & (labels == 0)) / max(np.sum(labels == 0), 1)
+
+        with open(os.path.join(out_stageII, "results.txt"), "w") as f:
+            f.write(f"Constant threshold: {CONST_THR}\n")
+            f.write(f"N patients: {len(labels)}\n")
+            f.write(f"Accuracy: {acc:.4f}\n")
+            f.write(f"Sensitivity: {sens:.4f}\n")
+            f.write(f"Specificity: {spec:.4f}\n")
+
+
+        # -----------------------------
+        # Stage I Test Set
+        # Stage I = everything NOT listed in TRAIN_PTS or TEST_PTS_STAGEII
+        # -----------------------------
+        all_pts = list(range(data.patient_count))  # all rows in Excel file
+        STAGE_I_PTS = [
+            p for p in all_pts if (p not in TRAIN_PTS) and (p not in TEST_PTS_STAGEII)
+        ]
+
+        out_stageI = os.path.join(out_dir, "const_thresh_0.5_stageI")
+        os.makedirs(out_stageI, exist_ok=True)
+
+        pt_probs, pt_labels, df_img, df_pt = compute_patient_and_image_outputs(
+            model, data, STAGE_I_PTS, device, pool_method=POOL_METHOD
+        )
+
+        df_img.to_csv(os.path.join(out_stageI, "image_outputs.csv"), index=False)
+        df_pt.to_csv(os.path.join(out_stageI, "patient_outputs.csv"), index=False)
+
+        preds = (pt_probs.numpy() >= CONST_THR).astype(int)
+        labels = pt_labels.numpy()
+
+        acc  = np.mean(preds == labels)
+        sens = np.sum((preds == 1) & (labels == 1)) / max(np.sum(labels == 1), 1)
+        spec = np.sum((preds == 0) & (labels == 0)) / max(np.sum(labels == 0), 1)
+
+        with open(os.path.join(out_stageI, "results.txt"), "w") as f:
+            f.write(f"Constant threshold: {CONST_THR}\n")
+            f.write(f"N patients: {len(labels)}\n")
+            f.write(f"Accuracy: {acc:.4f}\n")
+            f.write(f"Sensitivity: {sens:.4f}\n")
+            f.write(f"Specificity: {spec:.4f}\n")
+
+
+        # -----------------------------
+        # Stage I + Stage II Combined
+        # -----------------------------
+        COMBINED = STAGE_I_PTS + TEST_PTS_STAGEII
+
+        out_comb = os.path.join(out_dir, "const_thresh_0.5_stageI_and_stageII")
+        os.makedirs(out_comb, exist_ok=True)
+
+        pt_probs, pt_labels, df_img, df_pt = compute_patient_and_image_outputs(
+            model, data, COMBINED, device, pool_method=POOL_METHOD
+        )
+
+        df_img.to_csv(os.path.join(out_comb, "image_outputs.csv"), index=False)
+        df_pt.to_csv(os.path.join(out_comb, "patient_outputs.csv"), index=False)
+
+        preds = (pt_probs.numpy() >= CONST_THR).astype(int)
+        labels = pt_labels.numpy()
+
+        acc  = np.mean(preds == labels)
+        sens = np.sum((preds == 1) & (labels == 1)) / max(np.sum(labels == 1), 1)
+        spec = np.sum((preds == 0) & (labels == 0)) / max(np.sum(labels == 0), 1)
+
+        with open(os.path.join(out_comb, "results.txt"), "w") as f:
+            f.write(f"Constant threshold: {CONST_THR}\n")
+            f.write(f"N patients: {len(labels)}\n")
+            f.write(f"Accuracy: {acc:.4f}\n")
+            f.write(f"Sensitivity: {sens:.4f}\n")
+            f.write(f"Specificity: {spec:.4f}\n")
+
+
         print(f"\nSaved outputs to: {out_dir}")
 
     print("\n=========================================")
