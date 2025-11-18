@@ -25,13 +25,13 @@ from my_modules.scripts.dataset import NSCLCDataset
 # Config
 # ------------------------------------------------------------------
 FAST_TEST = False
-TOTAL_EPOCHS = 1500
+TOTAL_EPOCHS = 2500
 SAVE_INTERVAL = 250
 
 TRAIN_PTS = [26, 22, 28, 24, 33, 17, 31, 25, 27, 21, 13, 16, 35, 19, 20, 15, 32]
 TEST_PTS_STAGEII = [23, 18, 34, 37, 36, 14, 29, 30]
 
-LR = 1e-7
+LR = 1e-6
 WD = 0.005
 
 
