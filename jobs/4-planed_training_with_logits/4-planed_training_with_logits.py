@@ -245,7 +245,7 @@ def main():
             plt.close(fig)
 
             # Update latest
-            latest_path = f"outputs/{model.name}/plots/loss_auc_curves.png"
+            latest_path = f"outputs/{model.name}/plots/loss_auc_curves_lr_{LR}_wd_{WD}.png"
             os.replace(fig_path, latest_path)
 
     print("\nTraining complete.")
