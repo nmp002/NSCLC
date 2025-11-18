@@ -31,6 +31,9 @@ SAVE_INTERVAL = 250
 TRAIN_PTS = [26, 22, 28, 24, 33, 17, 31, 25, 27, 21, 13, 16, 35, 19, 20, 15, 32]
 TEST_PTS_STAGEII = [23, 18, 34, 37, 36, 14, 29, 30]
 
+LR = 1e-7
+WD = 0.005
+
 
 # ------------------------------------------------------------------
 # Main
@@ -118,7 +121,7 @@ def main():
     ### CHANGED: Use BCEWithLogitsLoss (logits expected)
     loss_fn = nn.BCEWithLogitsLoss()
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-5, weight_decay=0.001)
+    optimizer = torch.optim.Adam(model.parameters(), lr=LR, weight_decay=WD)
 
     # Output directories
     os.makedirs('outputs', exist_ok=True)
@@ -210,7 +213,7 @@ def main():
         epoch_num = ep + 1
         if epoch_num % SAVE_INTERVAL == 0 or epoch_num == total_epochs:
 
-            model_path = f"outputs/{model.name}/models/{model.name}_lr_1e-5_wd_0.001_epoch{epoch_num}.pth"
+            model_path = f"outputs/{model.name}/models/{model.name}_lr_{LR}_wd_{WD}_epoch{epoch_num}.pth"
             torch.save(model.state_dict(), model_path)
             print(f"Saved model checkpoint: {model_path}")
 
