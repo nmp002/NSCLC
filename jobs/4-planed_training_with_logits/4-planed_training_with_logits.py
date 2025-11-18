@@ -224,7 +224,7 @@ def main():
                 "Validation ROC-AUC": val_auc
             }, index=range(1, len(train_loss) + 1))
 
-            df.to_csv(f"outputs/{model.name}/tabular_train_val.csv", index_label="Epoch")
+            df.to_csv(f"outputs/{model.name}/tabular_train_val_lr_{LR}_wd_{WD}.csv", index_label="Epoch")
 
             # Plot curves
             fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 5))
