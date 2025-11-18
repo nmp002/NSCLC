@@ -210,7 +210,7 @@ def main():
         epoch_num = ep + 1
         if epoch_num % SAVE_INTERVAL == 0 or epoch_num == total_epochs:
 
-            model_path = f'outputs/{model.name}/models/{model.name}_lr_1e-5_wd_0.001_epoch{epoch_num}.pth"
+            model_path = f"outputs/{model.name}/models/{model.name}_lr_1e-5_wd_0.001_epoch{epoch_num}.pth"
             torch.save(model.state_dict(), model_path)
             print(f"Saved model checkpoint: {model_path}")
 
