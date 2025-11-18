@@ -25,7 +25,7 @@ from my_modules.scripts.dataset import NSCLCDataset
 # Config
 # ------------------------------------------------------------------
 FAST_TEST = False
-TOTAL_EPOCHS = 1000
+TOTAL_EPOCHS = 1500
 SAVE_INTERVAL = 250
 
 TRAIN_PTS = [26, 22, 28, 24, 33, 17, 31, 25, 27, 21, 13, 16, 35, 19, 20, 15, 32]
