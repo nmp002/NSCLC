@@ -714,24 +714,24 @@ class ResNet18NPlaned(nn.Module):
         self.planes = self.input_size[0]
         self.start_width = start_width
         self.name = f'{self.planes}-Planed ResNet18'
-
-        # IMPORTANT CHANGE:
-        # Remove sigmoid at the end → we output raw logits.
-        # Using Identity() ensures compatibility with your code structure.
-        self.sigmoid = nn.Identity()
+        self.sigmoid = nn.Sigmoid() if sigmoid else nn.Identity()
 
         self.relu = nn.ReLU(inplace=True)
 
         # Stem
         self.stem = nn.Sequential(
-            nn.Conv2d(self.planes, self.start_width,
-                      kernel_size=(7, 7), stride=(2, 2),
-                      padding=(3, 3), bias=False),
-            nn.BatchNorm2d(self.start_width, eps=1e-05,
-                           momentum=0.1, affine=True,
-                           track_running_stats=True)
+            nn.Conv2d(
+                self.planes, self.start_width,
+                kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False
+            ),
+            nn.BatchNorm2d(
+                self.start_width,
+                eps=1e-05, momentum=0.1, affine=True, track_running_stats=True
+            )
         )
-        self.maxpool_1 = nn.MaxPool2d(kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+        self.maxpool_1 = nn.MaxPool2d(
+            kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), ceil_mode=False
+        )
 
         # Block 2, Pass 1
         width = self.start_width
@@ -750,32 +750,34 @@ class ResNet18NPlaned(nn.Module):
             blocks.conv3x3_to_outfun(width, 2 * width, 'relu', stride=(2, 2), padding=(1, 1)),
             blocks.conv3x3_to_outfun(2 * width, 2 * width, 'drop', stride=(1, 1), padding=(1, 1))
         )
-        self.concat_adj3 = nn.Conv2d(width, 2 * width, kernel_size=(1, 1), stride=(2, 2))
-        width *= 2
+        self.concat_adj3 = nn.Conv2d(width, 2 * width, kernel_size=(1, 1), stride=(2, 2), padding=(0, 0))
         # Pass 2
+        width *= 2
         self.block3_2 = nn.Sequential(
             blocks.conv3x3_to_outfun(width, width, 'relu', stride=(1, 1), padding=(1, 1)),
             blocks.conv3x3_to_outfun(width, width, 'drop', stride=(1, 1), padding=(1, 1))
         )
 
-        # Block 4
+        # Block 4, Pass 1
         self.block4_1 = nn.Sequential(
             blocks.conv3x3_to_outfun(width, 2 * width, 'relu', stride=(2, 2), padding=(1, 1)),
             blocks.conv3x3_to_outfun(2 * width, 2 * width, 'drop', stride=(1, 1), padding=(1, 1))
         )
-        self.concat_adj4 = nn.Conv2d(width, 2 * width, kernel_size=(1, 1), stride=(2, 2))
+        self.concat_adj4 = nn.Conv2d(width, 2 * width, kernel_size=(1, 1), stride=(2, 2), padding=(0, 0))
+        # Pass 2
         width *= 2
         self.block4_2 = nn.Sequential(
             blocks.conv3x3_to_outfun(width, width, 'relu', stride=(1, 1), padding=(1, 1)),
             blocks.conv3x3_to_outfun(width, width, 'drop', stride=(1, 1), padding=(1, 1))
         )
 
-        # Block 5
+        # Block 5, Pass 1
         self.block5_1 = nn.Sequential(
             blocks.conv3x3_to_outfun(width, 2 * width, 'relu', stride=(2, 2), padding=(1, 1)),
             blocks.conv3x3_to_outfun(2 * width, 2 * width, 'drop', stride=(1, 1), padding=(1, 1))
         )
-        self.concat_adj5 = nn.Conv2d(width, 2 * width, kernel_size=(1, 1), stride=(2, 2))
+        self.concat_adj5 = nn.Conv2d(width, 2 * width, kernel_size=(1, 1), stride=(2, 2), padding=(0, 0))
+        # Pass 2
         width *= 2
         self.block5_2 = nn.Sequential(
             blocks.conv3x3_to_outfun(width, width, 'relu', stride=(1, 1), padding=(1, 1)),
@@ -787,16 +789,13 @@ class ResNet18NPlaned(nn.Module):
         self.flat = nn.Flatten()
         self.fc = nn.Linear(width, 1000)
         self.out = nn.Linear(1000, n_classes)
-
-        # IMPORTANT CHANGE:
-        # Remove the final Sigmoid/Softmax
-        self.compressor = nn.Identity()
+        self.compressor = nn.Sigmoid() if n_classes == 1 else nn.Softmax(dim=1)
 
     def forward(self, x):
-        # Replace NaNs
+        # Prep
         x[torch.isnan(x)] = 0
 
-        # Stem
+        # Stem (Block 1)
         x = self.stem(x)
         x = self.relu(x)
         rx = self.maxpool_1(x)
@@ -833,9 +832,9 @@ class ResNet18NPlaned(nn.Module):
         x = self.flat(x)
         x = self.fc(x)
         x = self.out(x)
-
-        # Return raw logits (no sigmoid)
+        x = self.compressor(x)
         return x
+
 
 
 
