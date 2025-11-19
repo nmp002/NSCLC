@@ -32,6 +32,9 @@ SAVE_INTERVAL = 500          # save models and plots every 250 epochs
 TRAIN_PTS = [26, 22, 28, 24, 33, 17, 31, 25, 27, 21, 13, 16, 35, 19, 20, 15, 32]
 TEST_PTS_STAGEII = [23, 18, 34, 37, 36, 14, 29, 30]
 
+LR = 1e-7
+WD = 0.005
+
 
 # ------------------------------------------------------------------
 # Main
@@ -125,7 +128,7 @@ def main():
     # Training setup
     # ------------------------------------------------------------------
     loss_fn = nn.BCELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-5, weight_decay=0.0005)
+    optimizer = torch.optim.Adam(model.parameters(), lr=LR, weight_decay=WD)
 
     # output dirs and files
     os.makedirs('outputs', exist_ok=True)
@@ -205,7 +208,7 @@ def main():
         epoch_num = ep + 1
         if (epoch_num % SAVE_INTERVAL == 0) or (epoch_num == total_epochs):
             # Save model
-            model_path = f'outputs/{model.name}/models/{model.name}_lr_1e-5_wd_0.0005_epoch{epoch_num}.pth'
+            model_path = f'outputs/{model.name}/models/{model.name}_lr_{LR}_wd_{WD}_epoch{epoch_num}.pth'
             torch.save(model.state_dict(), model_path)
             print(f'Saved model checkpoint: {model_path}')
 
@@ -217,7 +220,7 @@ def main():
                 'Validation ROC-AUC': val_auc
             }, index=range(1, len(train_loss) + 1))
 
-            df.to_csv(f'outputs/{model.name}/tabular_train_val.csv', index_label='Epoch')
+            df.to_csv(f'outputs/{model.name}/tabular_train_val_lr_{LR}_wd_{WD}.csv', index_label='Epoch')
 
             # Plot loss and AUC with train vs val overlaid
             fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 5))
