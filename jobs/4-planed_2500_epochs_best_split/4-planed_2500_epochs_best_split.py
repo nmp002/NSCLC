@@ -33,7 +33,7 @@ TRAIN_PTS = [26, 22, 28, 24, 33, 17, 31, 25, 27, 21, 13, 16, 35, 19, 20, 15, 32]
 TEST_PTS_STAGEII = [23, 18, 34, 37, 36, 14, 29, 30]
 
 LR = 1e-7
-WD = 0.005
+WD = 0.01
 
 
 # ------------------------------------------------------------------
@@ -248,7 +248,7 @@ def main():
             plt.close(fig)
 
             # Also (optionally) save/update a "latest" plot
-            latest_path = f'outputs/{model.name}/plots/loss_auc_curves.png'
+            latest_path = f'outputs/{model.name}/plots/loss_auc_curves_lr_{LR}_wd_{WD}.png'
             os.replace(fig_path, latest_path)
             print(f'Saved loss/AUC curves to {latest_path}')
 
