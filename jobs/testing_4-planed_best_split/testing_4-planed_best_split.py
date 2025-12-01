@@ -242,7 +242,7 @@ def main():
         # CONSTANT THRESHOLD (0.5) SECTIONS
         # ============================================================
 
-        CONST_THR = 0.5
+        CONST_THR = 0.3844
 
         # -------- Stage I IDs --------
         ALL_PTS = list(range(data.patient_count))
@@ -252,9 +252,9 @@ def main():
         ]
 
         TEST_SETS = {
-            "const_thr0p5_stageII": TEST_PTS_STAGEII,
-            "const_thr0p5_stageI": STAGE_I_PTS,
-            "const_thr0p5_combined": TEST_PTS_STAGEII + STAGE_I_PTS
+            "const_thr0p3844_stageII": TEST_PTS_STAGEII,
+            "const_thr0p3844_stageI": STAGE_I_PTS,
+            "const_thr0p3844_combined": TEST_PTS_STAGEII + STAGE_I_PTS
         }
 
         for test_name, pt_list in TEST_SETS.items():
