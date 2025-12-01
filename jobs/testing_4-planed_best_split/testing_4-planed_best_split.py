@@ -27,7 +27,7 @@ from my_modules.scripts.dataset import NSCLCDataset
 # ---------------------------------------------------------
 # CONFIG
 # ---------------------------------------------------------
-POOL_METHOD = 'max'        # 'min', 'max', 'majority', 'mean', or 'median'
+POOL_METHOD = 'median'        # 'min', 'max', 'majority', 'mean', or 'median'
 MODELS_DIR = "/home/nmp002/NSCLC/jobs/testing_4-planed_best_split/models/"
 
 TRAIN_PTS = [26, 22, 28, 24, 33, 17, 31, 25,
@@ -275,7 +275,8 @@ def main():
                 (pt_probs, pt_labels),
                 print_results=True,
                 make_plot=True,
-                threshold_type='fixed'
+                threshold_type='fixed',
+                threshold=0.3844
             )
             fig_roc.savefig(os.path.join(out_test, "ROC_curve.png"))
             plt.close(fig_roc)
