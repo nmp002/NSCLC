@@ -242,7 +242,7 @@ def main():
         # CONSTANT THRESHOLD (0.5) SECTIONS
         # ============================================================
 
-        CONST_THR = 0.3567
+        CONST_THR = 0.3372
 
         # -------- Stage I IDs --------
         ALL_PTS = list(range(data.patient_count))
@@ -276,12 +276,12 @@ def main():
                 print_results=True,
                 make_plot=True,
                 threshold_type='fixed',
-                threshold=0.3567
+                threshold=0.3372
             )
             fig_roc.savefig(os.path.join(out_test, "ROC_curve.png"))
             plt.close(fig_roc)
 
-            # confusion matrix @ 0.3567
+            # confusion matrix @ 0.3372
             preds = (pt_probs >= CONST_THR).long()
 
             TP = int(((preds == 1) & (pt_labels == 1)).sum())
@@ -298,7 +298,7 @@ def main():
             ax.set_yticks([0, 1])
             ax.set_xticklabels(["Pred 0", "Pred 1"])
             ax.set_yticklabels(["True 0", "True 1"])
-            ax.set_title(f"Confusion Matrix @0.3567\n({test_name})")
+            ax.set_title(f"Confusion Matrix @0.3372\n({test_name})")
 
             for (i, j), v in np.ndenumerate(cm):
                 ax.text(j, i, str(v), ha="center", va="center")
