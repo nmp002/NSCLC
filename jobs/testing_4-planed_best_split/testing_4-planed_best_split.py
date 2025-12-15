@@ -182,7 +182,7 @@ def main():
     # ---------------------------------------------------------
     # Load model list
     # ---------------------------------------------------------
-    model_files = [f for f in os.listdir(MODELS_DIR) if f.endswith("1-Planed ResNet18_lr_1e-07_wd_0.2_epoch2500")]
+    model_files = [f for f in os.listdir(MODELS_DIR) if f.endswith("1-Planed ResNet18_lr_1e-07_wd_0.2_epoch2500.pth")]
     if len(model_files) == 0:
         print("\nNo models found.")
         return
