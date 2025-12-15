@@ -252,9 +252,9 @@ def main():
         ]
 
         TEST_SETS = {
-            "const_thr0p3567_stageII": TEST_PTS_STAGEII,
-            "const_thr0p3567_stageI": STAGE_I_PTS,
-            "const_thr0p3567_combined": TEST_PTS_STAGEII + STAGE_I_PTS
+            "const_thr0p3372_stageII": TEST_PTS_STAGEII,
+            "const_thr0p3372_stageI": STAGE_I_PTS,
+            "const_thr0p3372_combined": TEST_PTS_STAGEII + STAGE_I_PTS
         }
 
         for test_name, pt_list in TEST_SETS.items():
@@ -303,7 +303,7 @@ def main():
             for (i, j), v in np.ndenumerate(cm):
                 ax.text(j, i, str(v), ha="center", va="center")
 
-            fig_cm.savefig(os.path.join(out_test, "confusion_matrix_thr0p3567.png"))
+            fig_cm.savefig(os.path.join(out_test, "confusion_matrix_thr0p3372.png"))
             plt.close(fig_cm)
 
             # metrics file
@@ -311,7 +311,7 @@ def main():
             sens = TP / (TP + FN + 1e-9)
             spec = TN / (TN + FP + 1e-9)
 
-            with open(os.path.join(out_test, "results_thr0p3567.txt"), "w") as f:
+            with open(os.path.join(out_test, "results_thr0p3372.txt"), "w") as f:
                 f.write(f"Model: {model_name}\n")
                 f.write(f"Test Set: {test_name}\n")
                 f.write(f"Pooling: {POOL_METHOD}\n")
