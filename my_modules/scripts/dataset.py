@@ -115,7 +115,7 @@ TODO: Update doc
                                                            ...}
            In the case of atlases, this mode dict is trivial because there is only one load function (since only 'orr' 
            is available), but it is still produced to easily match loading at __getitem__ for both data types.
-           
+
            Whichever data type will be used is added as simply img_... variables to easily pass to __getitem__ 
            regardless of datatype. After __init__ this should make the behavior the same (with the exception of cropping
            and __len__ for atlases).      
@@ -182,6 +182,8 @@ TODO: Update doc
                               'fad': [load_fn['tiff'], r'fad\.(tiff|TIFF)'],
                               'shg': [load_fn['tiff'], r'shg\.(tiff|TIFF)'],
                               'orr': [load_fn['tiff'], r'orr\.(tiff|TIFF)'],
+                              # NEW: mean lifetime map stored as Tm.asc (ASCII)
+                              'tm': [load_fn['asc'], r'(Tm|tm)\.(asc|ASC)'],
                               'g': [load_fn['asc'], r'(G|g)\.(asc|ASC)'],
                               's': [load_fn['asc'], r'(S|s)\.(asc|ASC)'],
                               'photons': [load_fn['asc'], r'photons\.(asc|ASC)'],
@@ -373,6 +375,11 @@ TODO: Update doc
             for ii, mode in enumerate(self.mode):
                 # Pre-allocate on first pass
                 mode_load = load_dict[path_index][mode][0](load_dict[path_index][mode]).to(self.device)
+
+                # NEW: convert Tm from ps to ns (normalize later like other modes)
+                if mode.lower() == 'tm':
+                    mode_load = mode_load / 1000.0
+
                 if ii == 0:
                     self.image_dims = (self.stack_height,) + tuple(mode_load.size()[1:])
                     x = torch.empty(self.image_dims, dtype=torch.float32, device=self.device)
@@ -412,6 +419,7 @@ TODO: Update doc
         if self.mask_on:
             fov_mask = load_dict[path_index]['mask'][0](load_dict[path_index]['mask']).to(self.device).squeeze()
             # Apply mask to appropriate channels (not SHG)
+            # NOTE: tm will be masked here (since tm != 'shg')
             for ch in range(len(x)):
                 x[ch, fov_mask == 0] = float('nan') if self.mode[ch] != 'shg' else x[ch, fov_mask == 0]
 
@@ -838,10 +846,83 @@ TODO: Update doc
                                           'taumean': [2319.463134765625, 95.37203979492188],
                                           'boundfraction': [0.44960716366767883, 0.01542571373283863]}
 
+                    # NEW: If 'tm' is being used, compute its mean/std from the current dataset (masked),
+                    # then build a preset range (mean ± 3*std) so Tm is also normalized to ~[0, 1] like other modes.
+                    # NOTE: This runs once when normalize_method is set to 'preset' (and scalars['preset'] isn't built yet).
+                    if any(m.lower() == 'tm' for m in self.mode) and ('tm' not in mean_std_mode_dict):
+                        # Preserve current state
+                        temp_mode = self.mode[:]
+                        temp_transforms = self.transforms
+                        temp_aug = self.augmented
+                        temp_psuedo = self.psuedo_rgb
+                        temp_patch = self.use_patches
+                        temp_filter = self.filter_bad_data
+                        temp_norm = self._normalize_method
+
+                        # Disable anything that would change values or indices; load deterministically
+                        self.transforms = None
+                        self.augmented = False
+                        self.psuedo_rgb = False
+                        self.use_patches = False
+                        self.filter_bad_data = False
+                        self._normalize_method = None  # ensure __getitem__ does NOT normalize during stats pass
+
+                        # Temporarily switch to tm-only (masking still applies if mask_on=True)
+                        self._mode = ['tm']
+                        self.stack_height = 1
+
+                        # Compute mean and std across dataset, masked; ensure units are ns (since __getitem__ converts)
+                        all_means = []
+                        all_vars = []
+                        all_counts = []
+                        for ii in range(len(self)):
+                            tm_img, _ = self.__getitem__(ii, pool=False)  # shape (1,H,W)
+                            tm = tm_img[0]
+                            tm_valid = tm[~torch.isnan(tm)]
+                            if tm_valid.numel() == 0:
+                                continue
+                            # numerically stable online aggregation
+                            m = torch.mean(tm_valid)
+                            v = torch.var(tm_valid, unbiased=False)
+                            n = tm_valid.numel()
+                            all_means.append(m)
+                            all_vars.append(v)
+                            all_counts.append(n)
+
+                        if len(all_counts) == 0:
+                            # Fallback if something is wrong (avoids crash)
+                            tm_mean = torch.tensor(0.0, device=self.device)
+                            tm_std = torch.tensor(1.0, device=self.device)
+                        else:
+                            # Combine per-image stats into global stats
+                            counts = torch.tensor(all_counts, dtype=torch.float32, device=self.device)
+                            means = torch.stack(all_means).to(self.device)
+                            vars_ = torch.stack(all_vars).to(self.device)
+
+                            total_n = torch.sum(counts)
+                            tm_mean = torch.sum(means * counts) / total_n
+
+                            # E[var] + Var[E] decomposition
+                            tm_var = torch.sum(vars_ * counts) / total_n + torch.sum(counts * (means - tm_mean) ** 2) / total_n
+                            tm_std = torch.sqrt(torch.clamp(tm_var, min=1e-12))
+
+                        mean_std_mode_dict['tm'] = [tm_mean.item(), tm_std.item()]
+
+                        # Restore state
+                        self._mode = temp_mode
+                        self.stack_height = len(self._mode)
+                        self.transforms = temp_transforms
+                        self.augmented = temp_aug
+                        self.psuedo_rgb = temp_psuedo
+                        self.use_patches = temp_patch
+                        self.filter_bad_data = temp_filter
+                        self._normalize_method = temp_norm
+
                     self._preset_values = {}
                     for key, (m, s) in mean_std_mode_dict.items():
                         self._preset_values[key] = [m - (3 * s), m + (3 * s)]
 
+                    # Build preset scalars for the *current* mode list (now including tm if requested)
                     self.scalars['preset'] = torch.tensor(
                         [self._preset_values[mode] for mode in self.mode],
                         dtype=torch.float32, device=self.device)
@@ -858,7 +939,7 @@ TODO: Update doc
             ax.plot(self[index][0].T, label=self.mode)
             ax.legend()
             ax.tick_params(top=False, bottom=False, left=False, right=False, labelleft=False, labelbottom=False)
-            ax.set_title(f'{self.features['ID']['Slide Name'].iloc[slide_idx]}, {self.label}: {self[index][1]}',
+            ax.set_title(f'{self.features["ID"]["Slide Name"].iloc[slide_idx]}, {self.label}: {self[index][1]}',
                          fontsize=10)
         else:
             transform = t.ToPILImage()
@@ -882,7 +963,7 @@ TODO: Update doc
                     ax[ii].tick_params(top=False, bottom=False, left=False, right=False,
                                        labelleft=False, labelbottom=False)
                     ax[ii].set_title(f'{self.mode[ii]}', fontsize=10)
-            fig.suptitle(f'{self.features['ID']['Slide Name'].iloc[slide_idx]}, {self.label}: {self[index][1]}',
+            fig.suptitle(f'{self.features["ID"]["Slide Name"].iloc[slide_idx]}, {self.label}: {self[index][1]}',
                          fontsize=10)
             plt.show()
         return fig, ax
