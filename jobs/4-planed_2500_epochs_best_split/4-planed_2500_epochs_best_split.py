@@ -56,7 +56,8 @@ def main():
     # ------------------------------------------------------------------
     # Data  (4 modes: fad, nadh, shg, orr)
     # ------------------------------------------------------------------
-    modes = ['fad', 'nadh', 'shg', 'orr']
+    # Update: add mean lifetime (Tm.asc) as a 5th input plane: 'tm'
+    modes = ['fad', 'nadh', 'shg', 'orr', 'tm']
 
     train_data = NSCLCDataset('NSCLC_Data_for_ML',
                               modes,
@@ -120,6 +121,8 @@ def main():
     # ------------------------------------------------------------------
     # Model (only 5-planed ResNet18 variant)
     # ------------------------------------------------------------------
+    # Update: this remains correct—ResNet18NPlaned will infer number of planes
+    # from train_data.shape (now 5 planes because modes includes 'tm').
     model = ResNet18NPlaned(train_data.shape, start_width=64, n_classes=1)
     if torch.cuda.is_available() and not next(model.parameters()).is_cuda:
         model.to(device)
