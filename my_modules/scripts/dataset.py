@@ -267,18 +267,26 @@ TODO: Update doc
             self.remove_empty()
 
     def remove_empty(self):
+        """
+        Removes patients that have zero valid FOVs *after* mode-based pruning.
+        Important: self.fovs_by_subject may not contain [] even if a patient has 0 valid FOVs,
+        because invalid FOVs are removed from self.all_fovs / self.fov_mode_dict only.
+        """
         for_removal = []
-        for pt in range(self.total_patient_count):
+        for pt in range(len(self.features)):  # use current length, not total_patient_count
             if len(self.get_patient_subset(pt)) == 0:
-                self.patient_count -= 1
                 for_removal.append(pt)
 
-        for pt in for_removal:
+        # Remove in reverse so indices stay valid
+        for pt in sorted(for_removal, reverse=True):
             self.features.drop(pt, inplace=True)
-            self.fovs_by_subject.remove([])
+            if not self._use_atlas:
+                # remove the corresponding subject entry, regardless of whether it's []
+                self.fovs_by_subject.pop(pt)
 
-        # Reindex patients
+        # Reindex patients/features
         self.features.index = range(len(self.features))
+        self.patient_count = len(self.features)
 
     def __len__(self):
         if self._use_atlas:
