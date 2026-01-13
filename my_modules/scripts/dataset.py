@@ -229,36 +229,13 @@ TODO: Update doc
                 self.fov_mode_dict[index]['intensity'] = [load_intensity, [self.fov_mode_dict[index]['nadh'],
                                                                            self.fov_mode_dict[index]['fad']
                                                                            ]]
-            # Remove items that are missing a called mode
-            # Note the [:] makes a copy of the list so indices don't change on removal
+            # --------------------------------------------------
+            # Remove FOVs that do not contain a valid mask.tiff
+            # --------------------------------------------------
             for ii, fov_lut in enumerate(self.fov_mode_dict[:]):
-                for mode in self.mode:
-                    match mode.lower():
-                        case 'taumean':
-                            if not all([fov_lut['alpha1'][1], fov_lut['tau1'][1],
-                                        fov_lut['alpha2'][1], fov_lut['tau2'][1]]):
-                                self.all_fovs.remove(fov_lut['alpha1'][0])
-                                self.fov_mode_dict.remove(fov_lut)
-                                print(f'1removed {fov_lut[mode]} due to {mode}')
-                                break
-                        case 'boundfraction':
-                            if not all([fov_lut['alpha1'][1], fov_lut['alpha2'][1]]):
-                                self.all_fovs.remove(fov_lut['alpha1'][0])
-                                self.fov_mode_dict.remove(fov_lut)
-                                print(f'2removed {fov_lut[mode]} due to {mode}')
-                                break
-                        case 'intensity':
-                            if not all([fov_lut['fad'][1], fov_lut['nadh'][1]]):
-                                print('not')
-                                self.all_fovs.remove(fov_lut['fad'][0])
-                                self.fov_mode_dict.remove(fov_lut)
-                                print(f'3removed {fov_lut[mode]} due to {mode}')
-                        case _:
-                            if fov_lut[mode][1] is None:
-                                self.all_fovs.remove(fov_lut[mode][0])
-                                self.fov_mode_dict.remove(fov_lut)
-                                print(f'removed {fov_lut[mode]} due to {mode}')
-                                break
+                if fov_lut.get('mask', [None, None])[1] is None:
+                    self.all_fovs.remove(fov_lut['fad'][0])  # path to FOV
+                    self.fov_mode_dict.remove(fov_lut)
 
         self.patient_count = self.total_patient_count
 
