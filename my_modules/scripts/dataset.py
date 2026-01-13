@@ -177,23 +177,31 @@ TODO: Update doc
                        'ratio': load_bound_fraction}
 
             # Define a mode dict that matches appropriate load functions and filename regex to mode
-            self.mode_dict = {'mask': [load_fn['tiff'], r'mask\.(tiff|TIFF)'],
-                              'nadh': [load_fn['tiff'], r'nadh\.(tiff|TIFF)'],
-                              'fad': [load_fn['tiff'], r'fad\.(tiff|TIFF)'],
-                              'shg': [load_fn['tiff'], r'shg\.(tiff|TIFF)'],
-                              'orr': [load_fn['tiff'], r'orr\.(tiff|TIFF)'],
-                              # NEW: mean lifetime map stored as Tm.asc (ASCII)
-                              'tm': [load_fn['asc'], r'(Tm|tm)\.(asc|ASC)'],
-                              'g': [load_fn['asc'], r'(G|g)\.(asc|ASC)'],
-                              's': [load_fn['asc'], r'(S|s)\.(asc|ASC)'],
-                              'photons': [load_fn['asc'], r'photons\.(asc|ASC)'],
-                              'tau1': [load_fn['asc'], r't1\.(asc|ASC)'],
-                              'tau2': [load_fn['asc'], r't2\.(asc|ASC)'],
-                              'alpha1': [load_fn['asc'], r'a1\.(asc|ASC)'],
-                              'alpha2': [load_fn['asc'], r'a2\.(asc|ASC)']}
-            # Compile regexes
-            self.mode_dict = {key: [item[0], re.compile(rf'.*?[/\\]{item[1]}')] for key, item in
-                              self.mode_dict.items()}
+
+            self.mode_dict = {
+                'mask': [load_fn['tiff'], r'mask\.(tiff|TIFF)'],
+                'nadh': [load_fn['tiff'], r'nadh\.(tiff|TIFF)'],
+                'fad': [load_fn['tiff'], r'fad\.(tiff|TIFF)'],
+                'shg': [load_fn['tiff'], r'shg\.(tiff|TIFF)'],
+                'orr': [load_fn['tiff'], r'orr\.(tiff|TIFF)'],
+
+                # NEW: mean lifetime map from ASCII
+                'tm': [load_fn['asc'], r'(Tm|tm)\.(asc|ASC)'],
+
+                'g': [load_fn['asc'], r'(G|g)\.(asc|ASC)'],
+                's': [load_fn['asc'], r'(S|s)\.(asc|ASC)'],
+                'photons': [load_fn['asc'], r'photons\.(asc|ASC)'],
+                'tau1': [load_fn['asc'], r't1\.(asc|ASC)'],
+                'tau2': [load_fn['asc'], r't2\.(asc|ASC)'],
+                'alpha1': [load_fn['asc'], r'a1\.(asc|ASC)'],
+                'alpha2': [load_fn['asc'], r'a2\.(asc|ASC)'],
+            }
+
+            # Compile regexes (leave this line as-is if you already have it)
+            self.mode_dict = {
+                key: [item[0], re.compile(rf'.*?[/\\]{item[1]}')]
+                for key, item in self.mode_dict.items()
+            }
 
             # Make an indexed FOV-LUT dict list of loaders and files
             self.fov_mode_dict = [{} for _ in range(len(self.all_fovs))]
@@ -214,7 +222,7 @@ TODO: Update doc
                                 self.fov_mode_dict[index][mode] = [load_fn, match.string]
                     # Else, add <None> for later removal and move on to next FOV
                     else:
-                        self.fov_mode_dict[index][mode] = [fov, None]
+                        self.fov_mode_dict[index][mode] = [load_fn, None]
 
                 # Add derived modes
                 self.fov_mode_dict[index]['boundfraction'] = [load_bound_fraction, [self.fov_mode_dict[index]['alpha1'],
@@ -229,15 +237,48 @@ TODO: Update doc
                 self.fov_mode_dict[index]['intensity'] = [load_intensity, [self.fov_mode_dict[index]['nadh'],
                                                                            self.fov_mode_dict[index]['fad']
                                                                            ]]
-            # --------------------------------------------------
-            # Remove FOVs that do not contain a valid mask.tiff
-            # --------------------------------------------------
-            for ii, fov_lut in enumerate(self.fov_mode_dict[:]):
-                if fov_lut.get('mask', [None, None])[1] is None:
-                    self.all_fovs.remove(fov_lut['fad'][0])  # path to FOV
-                    self.fov_mode_dict.remove(fov_lut)
+            # =========================
+            # This prunes any FOV missing:
+            #   - mask.tiff (your desired rule)
+            #   - any requested mode in self.mode (including tm if you request it)
+            # =========================
 
-        self.patient_count = self.total_patient_count
+            required_modes = [m.lower() for m in self.mode]
+
+            for fov_lut in self.fov_mode_dict[:]:
+                fov_path = None
+
+                # Determine a reliable fov_path to remove from self.all_fovs
+                # Prefer fad path if present, else any available mode path
+                for k, v in fov_lut.items():
+                    if isinstance(v, list) and len(v) == 2 and isinstance(v[1], str):
+                        fov_path = os.path.dirname(v[1])
+                        break
+                if fov_path is None:
+                    # fallback: some older entries store the fov dir in [0]
+                    for k, v in fov_lut.items():
+                        if isinstance(v, list) and len(v) == 2 and isinstance(v[0], str):
+                            fov_path = v[0]
+                            break
+
+                # 1) Must have mask
+                if ('mask' not in fov_lut) or (fov_lut['mask'][1] is None):
+                    if fov_path in self.all_fovs:
+                        self.all_fovs.remove(fov_path)
+                    self.fov_mode_dict.remove(fov_lut)
+                    continue
+
+                # 2) Must have every requested mode file present
+                missing = []
+                for m in required_modes:
+                    if m not in fov_lut or fov_lut[m][1] is None:
+                        missing.append(m)
+
+                if missing:
+                    if fov_path in self.all_fovs:
+                        self.all_fovs.remove(fov_path)
+                    self.fov_mode_dict.remove(fov_lut)
+                    continue
 
         # Remove empty patients entirely
         if remove_empties:
@@ -829,7 +870,8 @@ TODO: Update doc
                                           'alpha1': [103.16101837158203, 6.902841567993164],
                                           'alpha2': [78.77812194824219, 4.96993350982666],
                                           'taumean': [2319.463134765625, 95.37203979492188],
-                                          'boundfraction': [0.44960716366767883, 0.01542571373283863]}
+                                          'boundfraction': [0.44960716366767883, 0.01542571373283863],
+                                          'tm': [1.0, 0.0]}  # will become [1,1]; doesn't matter since skipped
 
                     # NEW: If 'tm' is being used, compute its mean/std from the current dataset (masked),
                     # then build a preset range (mean ± 3*std) so Tm is also normalized to ~[0, 1] like other modes.
