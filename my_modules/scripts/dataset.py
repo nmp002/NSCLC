@@ -1,14 +1,19 @@
 import warnings
-
 import torchvision.transforms.v2 as t
 import os
-
 from PIL import Image
 
 Image.MAX_IMAGE_PIXELS = None
 
-from .helper_functions import (load_tiff, load_asc, load_intensity, load_weighted_average, load_bound_fraction,
-                               convert_mp_to_torch)
+from .helper_functions import (
+    load_tiff,
+    load_asc,
+    load_intensity,
+    load_weighted_average,
+    load_bound_fraction,
+    convert_mp_to_torch,
+)
+
 import pandas as pd
 import numpy as np
 import torch
@@ -29,7 +34,7 @@ class NSCLCDataset(Dataset):
 
     Image modes are specified at creation and can include any typical MPM image modes available from the dataset and
     derived modes (bound fraction and mean lifetime).
-TODO: Update doc
+
     Attributes:
         - root (string): Root directory of NSCLC dataset.
         - mode (list): Ordered list of image modes as they will be returned.
@@ -51,9 +56,22 @@ TODO: Update doc
     """
 
     # region Main Dataset Methods -- init, len, getitem (with helper methods included)
-    def __init__(self, root, mode, xl_file=None, label=None, mask_on=True, transforms=None, use_atlas=False,
-                 use_patches=True, patch_size=(512, 512), use_cache=True, pool_patients=False, remove_empties=True,
-                 device=(torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu'))):
+    def __init__(
+        self,
+        root,
+        mode,
+        xl_file=None,
+        label=None,
+        mask_on=True,
+        transforms=None,
+        use_atlas=False,
+        use_patches=True,
+        patch_size=(512, 512),
+        use_cache=True,
+        pool_patients=False,
+        remove_empties=True,
+        device=(torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")),
+    ):
         super().__init__()
         self.transforms = transforms
         self.root = root
@@ -78,7 +96,7 @@ TODO: Update doc
         self.dist_transformed = False
         self.psuedo_rgb = False
         self.rgb_squeeze = False if self.stack_height > 1 else True
-        self._name = 'nsclc_'
+        self._name = "nsclc_"
         self._shape = None
         self._normalize_method = None
         self._nbins = 25
@@ -91,35 +109,38 @@ TODO: Update doc
 
         # Find and load features spreadsheet (or load directly if path provided)
         if xl_file is None:
-            xl_file = glob.glob(self.root + os.sep + '*.xlsx')
+            xl_file = glob.glob(self.root + os.sep + "*.xlsx")
             if not xl_file:
                 raise Exception(
-                    'Features file not found,'
-                    ' input path manually at dataset initialization using xl_file=<path_to_file>.')
+                    "Features file not found,"
+                    " input path manually at dataset initialization using xl_file=<path_to_file>."
+                )
             self.xl_file = xl_file[0]
         else:
             self.xl_file = xl_file
         self.features = pd.read_excel(self.xl_file, header=[0, 1])
         self.total_patient_count = len(self.features)
+
         """
-        - atlases_by_sample and fovs_by_subject are lists of lists. The inner lists correspond to the images within a 
-        given sample or slide and the outer lists match the index of the slide to the features. In other words, the 
-        index of a given slide in the features file will also match a list of all images from that slide in the list of 
+        - atlases_by_sample and fovs_by_subject are lists of lists. The inner lists correspond to the images within a
+        given sample or slide and the outer lists match the index of the slide to the features. In other words, the
+        index of a given slide in the features file will also match a list of all images from that slide in the list of
         lists.
-        - all_atlases and all_fovs maintain the order, but un-nest the lists so they can easily be indexed into 
-        to actually use the paths to get items.  
-        - atlas_mode_dict and fov_mode_dict are lists of dicts. Each dict matches the index of the all_... lists, but 
+        - all_atlases and all_fovs maintain the order, but un-nest the lists so they can easily be indexed into
+        to actually use the paths to get items.
+        - atlas_mode_dict and fov_mode_dict are lists of dicts. Each dict matches the index of the all_... lists, but
         also includes functions and paths for individual modes. They are of the form:
             ..._mode_dict[<image_index_from_all_list>] = {<mode name>: [<specific load function for mode's file type>,
                                                                         <path for specific mode of indexed image and>]
                                                            ...}
-           In the case of atlases, this mode dict is trivial because there is only one load function (since only 'orr' 
+           In the case of atlases, this mode dict is trivial because there is only one load function (since only 'orr'
            is available), but it is still produced to easily match loading at __getitem__ for both data types.
 
-           Whichever data type will be used is added as simply img_... variables to easily pass to __getitem__ 
+           Whichever data type will be used is added as simply img_... variables to easily pass to __getitem__
            regardless of datatype. After __init__ this should make the behavior the same (with the exception of cropping
-           and __len__ for atlases).      
+           and __len__ for atlases).
         """
+
         # Prepare a list of images from data dir matched to slide names from the features excel file
         if self._use_atlas:
             # Track number of individual 512x512 patches available within each atlas
@@ -134,72 +155,75 @@ TODO: Update doc
 
             # A "mode_dict" that looks the same as the fov_mode_dict (though this one is trivial)
             self.atlas_mode_dict = []
-            for subject in self.features['ID']['Sample']:
-                sample_dir = os.path.join(self.root, 'Atlas_Images', subject)
+            for subject in self.features["ID"]["Sample"]:
+                sample_dir = os.path.join(self.root, "Atlas_Images", subject)
                 self.atlases_by_sample.append([])
                 for trunk, dirs, files in os.walk(sample_dir):
                     for f in files:
-                        if 'rawredoxmap.tiff' == f.lower():
+                        if "rawredoxmap.tiff" == f.lower():
                             im_path = os.path.join(trunk, f)
                             self.atlases_by_sample[-1].append(trunk)
-                            self.atlas_mode_dict.append({'orr': [load_tiff, im_path]})
+                            self.atlas_mode_dict.append({"orr": [load_tiff, im_path]})
                             with Image.open(im_path) as im:
                                 width, height = im.size
-                                rm_width, rm_height = width % self._patch_size[1], height % self._patch_size[0]
+                                rm_width, rm_height = (
+                                    width % self._patch_size[1],
+                                    height % self._patch_size[0],
+                                )
                                 width, height = width - rm_width, height - rm_height  # "crop" to be a perfect fit
                                 self.atlas_patch_dims.append(
-                                    (height / self._patch_size[0], width / self._patch_size[1]))
+                                    (height / self._patch_size[0], width / self._patch_size[1])
+                                )
                                 total_patches_through_index += np.prod(self.atlas_patch_dims[-1])
                                 self.atlas_sub_index_map.append(total_patches_through_index)
 
             # Un-nest list (still ordered, but now easily indexable)
-            self.all_atlases = [atlas for sample_atlases in self.atlases_by_sample for atlas in sample_atlases]
+            self.all_atlases = [
+                atlas for sample_atlases in self.atlases_by_sample for atlas in sample_atlases
+            ]
         else:
             self.fovs_by_subject = []
-            for subject in self.features['ID']['Subject']:
+            for subject in self.features["ID"]["Subject"]:
                 self.fovs_by_subject.append([])
                 # Walk the root until files are hit
-                for rt, dr, f in os.walk(f'{self.root}{os.sep}{subject}{os.sep}'):
+                for rt, dr, f in os.walk(f"{self.root}{os.sep}{subject}{os.sep}"):
                     # When files are hit, add that dir to the nested list for the subject
                     if f:
                         self.fovs_by_subject[-1].append(rt)
-            self.all_fovs = [fov for slide_fovs in self.fovs_by_subject for fov in
-                             slide_fovs]  # This will give a list of all fovs (still ordered, but now not nested,
+            self.all_fovs = [
+                fov for slide_fovs in self.fovs_by_subject for fov in slide_fovs
+            ]  # This will give a list of all fovs (still ordered, but now not nested,
             # making it simple for indexing in __getitem__)
 
             # Master dicts for easy sorting of FOVs by file names and easy addition of appropriate load function based
             # on type
             # Define loading functions for different image types
-            load_fn = {'tiff': load_tiff,
-                       'asc': load_asc,
-                       'int': load_intensity,
-                       'weighted_average': load_weighted_average,
-                       'ratio': load_bound_fraction}
-
-            # Define a mode dict that matches appropriate load functions and filename regex to mode
-
-            self.mode_dict = {
-                'mask': [load_fn['tiff'], r'mask\.(tiff|TIFF)'],
-                'nadh': [load_fn['tiff'], r'nadh\.(tiff|TIFF)'],
-                'fad': [load_fn['tiff'], r'fad\.(tiff|TIFF)'],
-                'shg': [load_fn['tiff'], r'shg\.(tiff|TIFF)'],
-                'orr': [load_fn['tiff'], r'orr\.(tiff|TIFF)'],
-
-                # NEW: mean lifetime map from ASCII
-                'tm': [load_fn['asc'], r'(Tm|tm)\.(asc|ASC)'],
-
-                'g': [load_fn['asc'], r'(G|g)\.(asc|ASC)'],
-                's': [load_fn['asc'], r'(S|s)\.(asc|ASC)'],
-                'photons': [load_fn['asc'], r'photons\.(asc|ASC)'],
-                'tau1': [load_fn['asc'], r't1\.(asc|ASC)'],
-                'tau2': [load_fn['asc'], r't2\.(asc|ASC)'],
-                'alpha1': [load_fn['asc'], r'a1\.(asc|ASC)'],
-                'alpha2': [load_fn['asc'], r'a2\.(asc|ASC)'],
+            load_fn = {
+                "tiff": load_tiff,
+                "asc": load_asc,
+                "int": load_intensity,
+                "weighted_average": load_weighted_average,
+                "ratio": load_bound_fraction,
             }
 
-            # Compile regexes (leave this line as-is if you already have it)
+            # Define a mode dict that matches appropriate load functions and filename regex to mode
             self.mode_dict = {
-                key: [item[0], re.compile(rf'.*?[/\\]{item[1]}')]
+                "mask": [load_fn["tiff"], r"mask\.(tiff|TIFF)"],
+                "nadh": [load_fn["tiff"], r"nadh\.(tiff|TIFF)"],
+                "fad": [load_fn["tiff"], r"fad\.(tiff|TIFF)"],
+                "shg": [load_fn["tiff"], r"shg\.(tiff|TIFF)"],
+                "orr": [load_fn["tiff"], r"orr\.(tiff|TIFF)"],
+                "g": [load_fn["asc"], r"(G|g)\.(asc|ASC)"],
+                "s": [load_fn["asc"], r"(S|s)\.(asc|ASC)"],
+                "photons": [load_fn["asc"], r"photons\.(asc|ASC)"],
+                "tau1": [load_fn["asc"], r"t1\.(asc|ASC)"],
+                "tau2": [load_fn["asc"], r"t2\.(asc|ASC)"],
+                "alpha1": [load_fn["asc"], r"a1\.(asc|ASC)"],
+                "alpha2": [load_fn["asc"], r"a2\.(asc|ASC)"],
+            }
+            # Compile regexes
+            self.mode_dict = {
+                key: [item[0], re.compile(rf".*?[/\\]{item[1]}")]
                 for key, item in self.mode_dict.items()
             }
 
@@ -222,89 +246,83 @@ TODO: Update doc
                                 self.fov_mode_dict[index][mode] = [load_fn, match.string]
                     # Else, add <None> for later removal and move on to next FOV
                     else:
-                        self.fov_mode_dict[index][mode] = [load_fn, None]
+                        self.fov_mode_dict[index][mode] = [fov, None]
 
                 # Add derived modes
-                self.fov_mode_dict[index]['boundfraction'] = [load_bound_fraction, [self.fov_mode_dict[index]['alpha1'],
-                                                                                    self.fov_mode_dict[index]['alpha2']
-                                                                                    ]]
-                self.fov_mode_dict[index]['taumean'] = [load_weighted_average,
-                                                        [self.fov_mode_dict[index]['alpha1'],
-                                                         self.fov_mode_dict[index]['tau1'],
-                                                         self.fov_mode_dict[index]['alpha2'],
-                                                         self.fov_mode_dict[index]['tau2']
-                                                         ]]
-                self.fov_mode_dict[index]['intensity'] = [load_intensity, [self.fov_mode_dict[index]['nadh'],
-                                                                           self.fov_mode_dict[index]['fad']
-                                                                           ]]
-            # =========================
-            # This prunes any FOV missing:
-            #   - mask.tiff (your desired rule)
-            #   - any requested mode in self.mode (including tm if you request it)
-            # =========================
+                self.fov_mode_dict[index]["boundfraction"] = [
+                    load_bound_fraction,
+                    [self.fov_mode_dict[index]["alpha1"], self.fov_mode_dict[index]["alpha2"]],
+                ]
+                self.fov_mode_dict[index]["taumean"] = [
+                    load_weighted_average,
+                    [
+                        self.fov_mode_dict[index]["alpha1"],
+                        self.fov_mode_dict[index]["tau1"],
+                        self.fov_mode_dict[index]["alpha2"],
+                        self.fov_mode_dict[index]["tau2"],
+                    ],
+                ]
+                self.fov_mode_dict[index]["intensity"] = [
+                    load_intensity,
+                    [self.fov_mode_dict[index]["nadh"], self.fov_mode_dict[index]["fad"]],
+                ]
 
-            required_modes = [m.lower() for m in self.mode]
+            # Remove items that are missing a called mode
+            # Note the [:] makes a copy of the list so indices don't change on removal
+            for ii, fov_lut in enumerate(self.fov_mode_dict[:]):
+                for mode in self.mode:
+                    match mode.lower():
+                        case "taumean":
+                            if not all(
+                                [
+                                    fov_lut["alpha1"][1],
+                                    fov_lut["tau1"][1],
+                                    fov_lut["alpha2"][1],
+                                    fov_lut["tau2"][1],
+                                ]
+                            ):
+                                self.all_fovs.remove(fov_lut["alpha1"][0])
+                                self.fov_mode_dict.remove(fov_lut)
+                                print(f"1removed {fov_lut[mode]} due to {mode}")
+                                break
+                        case "boundfraction":
+                            if not all([fov_lut["alpha1"][1], fov_lut["alpha2"][1]]):
+                                self.all_fovs.remove(fov_lut["alpha1"][0])
+                                self.fov_mode_dict.remove(fov_lut)
+                                print(f"2removed {fov_lut[mode]} due to {mode}")
+                                break
+                        case "intensity":
+                            if not all([fov_lut["fad"][1], fov_lut["nadh"][1]]):
+                                print("not")
+                                self.all_fovs.remove(fov_lut["fad"][0])
+                                self.fov_mode_dict.remove(fov_lut)
+                                print(f"3removed {fov_lut[mode]} due to {mode}")
+                        case _:
+                            if fov_lut[mode][1] is None:
+                                self.all_fovs.remove(fov_lut[mode][0])
+                                self.fov_mode_dict.remove(fov_lut)
+                                print(f"removed {fov_lut[mode]} due to {mode}")
+                                break
 
-            for fov_lut in self.fov_mode_dict[:]:
-                fov_path = None
-
-                # Determine a reliable fov_path to remove from self.all_fovs
-                # Prefer fad path if present, else any available mode path
-                for k, v in fov_lut.items():
-                    if isinstance(v, list) and len(v) == 2 and isinstance(v[1], str):
-                        fov_path = os.path.dirname(v[1])
-                        break
-                if fov_path is None:
-                    # fallback: some older entries store the fov dir in [0]
-                    for k, v in fov_lut.items():
-                        if isinstance(v, list) and len(v) == 2 and isinstance(v[0], str):
-                            fov_path = v[0]
-                            break
-
-                # 1) Must have mask
-                if ('mask' not in fov_lut) or (fov_lut['mask'][1] is None):
-                    if fov_path in self.all_fovs:
-                        self.all_fovs.remove(fov_path)
-                    self.fov_mode_dict.remove(fov_lut)
-                    continue
-
-                # 2) Must have every requested mode file present
-                missing = []
-                for m in required_modes:
-                    if m not in fov_lut or fov_lut[m][1] is None:
-                        missing.append(m)
-
-                if missing:
-                    if fov_path in self.all_fovs:
-                        self.all_fovs.remove(fov_path)
-                    self.fov_mode_dict.remove(fov_lut)
-                    continue
+        self.patient_count = self.total_patient_count
 
         # Remove empty patients entirely
         if remove_empties:
             self.remove_empty()
 
     def remove_empty(self):
-        """
-        Removes patients that have zero valid FOVs *after* mode-based pruning.
-        Important: self.fovs_by_subject may not contain [] even if a patient has 0 valid FOVs,
-        because invalid FOVs are removed from self.all_fovs / self.fov_mode_dict only.
-        """
         for_removal = []
-        for pt in range(len(self.features)):  # use current length, not total_patient_count
+        for pt in range(self.total_patient_count):
             if len(self.get_patient_subset(pt)) == 0:
+                self.patient_count -= 1
                 for_removal.append(pt)
 
-        # Remove in reverse so indices stay valid
-        for pt in sorted(for_removal, reverse=True):
+        for pt in for_removal:
             self.features.drop(pt, inplace=True)
-            if not self._use_atlas:
-                # remove the corresponding subject entry, regardless of whether it's []
-                self.fovs_by_subject.pop(pt)
+            self.fovs_by_subject.remove([])
 
-        # Reindex patients/features
+        # Reindex patients
         self.features.index = range(len(self.features))
-        self.patient_count = len(self.features)
 
     def __len__(self):
         if self._use_atlas:
@@ -380,7 +398,7 @@ TODO: Update doc
 
         # Check if this index has been previously deemed bad
         if self.in_bad_index_cache is not None and self.in_bad_index_cache[index]:
-            print(f'skipping previous bad index {index}')
+            print(f"skipping previous bad index {index}")
             pt_indices = self.get_patient_subset(slide_idx)
             while self.in_bad_index_cache[index]:
                 index = pt_indices[(pt_indices.index(index) + 1) % len(pt_indices)]
@@ -401,11 +419,6 @@ TODO: Update doc
             for ii, mode in enumerate(self.mode):
                 # Pre-allocate on first pass
                 mode_load = load_dict[path_index][mode][0](load_dict[path_index][mode]).to(self.device)
-
-                # NEW: convert Tm from ps to ns (normalize later like other modes)
-                if mode.lower() == 'tm':
-                    mode_load = mode_load / 1000.0
-
                 if ii == 0:
                     self.image_dims = (self.stack_height,) + tuple(mode_load.size()[1:])
                     x = torch.empty(self.image_dims, dtype=torch.float32, device=self.device)
@@ -415,23 +428,29 @@ TODO: Update doc
             # Get index of nested list that contains the image path based on what slide the FOV is from. This index will
             # coincide with the index of the features file to get the label of the sample/slide the image is from.
             match self.label:
-                case 'Response':
-                    y = torch.tensor(1 if self.features['FOLLOWUP DATA']['Status (NR/R)'].iloc[slide_idx] == 'R'
-                                     else 0, dtype=torch.float32, device=self.device)
-                case 'Metastases':
-                    y = torch.tensor(1 if self.features['FOLLOWUP DATA']['Status (Mets/NM)'].iloc[slide_idx] == 'METS'
-                                     else 0, dtype=torch.float32, device=self.device)
-                case 'Mask':
+                case "Response":
+                    y = torch.tensor(
+                        1 if self.features["FOLLOWUP DATA"]["Status (NR/R)"].iloc[slide_idx] == "R" else 0,
+                        dtype=torch.float32,
+                        device=self.device,
+                    )
+                case "Metastases":
+                    y = torch.tensor(
+                        1 if self.features["FOLLOWUP DATA"]["Status (Mets/NM)"].iloc[slide_idx] == "METS" else 0,
+                        dtype=torch.float32,
+                        device=self.device,
+                    )
+                case "Mask":
                     # Load mask (if on or label)
-                    fov_mask = load_dict[path_index]['mask'][0](load_dict[path_index]['mask']).to(self.device)
-                    fov_mask[fov_mask == 0] = float('nan')
+                    fov_mask = load_dict[path_index]["mask"][0](load_dict[path_index]["mask"]).to(self.device)
+                    fov_mask[fov_mask == 0] = float("nan")
                     y = fov_mask
                 case None:
-                    y = torch.tensor(-999999,  # Placeholder for NaN label
-                                     dtype=torch.float32, device=self.device)
+                    y = torch.tensor(-999999, dtype=torch.float32, device=self.device)  # Placeholder for NaN label
                 case _:
                     raise Exception(
-                        'An unrecognized label is in use. Update label attribute of dataset and try again.')
+                        "An unrecognized label is in use. Update label attribute of dataset and try again."
+                    )
 
             # Add the loaded image data to the cache (open and add, if it's not open)
             if self.index_cache is None and self.use_cache:
@@ -443,11 +462,10 @@ TODO: Update doc
 
         # Load mask (if on)
         if self.mask_on:
-            fov_mask = load_dict[path_index]['mask'][0](load_dict[path_index]['mask']).to(self.device).squeeze()
+            fov_mask = load_dict[path_index]["mask"][0](load_dict[path_index]["mask"]).to(self.device).squeeze()
             # Apply mask to appropriate channels (not SHG)
-            # NOTE: tm will be masked here (since tm != 'shg')
             for ch in range(len(x)):
-                x[ch, fov_mask == 0] = float('nan') if self.mode[ch] != 'shg' else x[ch, fov_mask == 0]
+                x[ch, fov_mask == 0] = float("nan") if self.mode[ch] != "shg" else x[ch, fov_mask == 0]
 
         # Perform all data augmentations, transformations, etc. on base image
         # patch the atlas into individual images
@@ -481,7 +499,7 @@ TODO: Update doc
         # Dynamically and recursively filter out bad data (namely, images with little or no signal) while maintain the
         # same patient index
         if self.filter_bad_data and self.is_bad_data(x):
-            print(f'crap {index} added to bad cache')
+            print(f"crap {index} added to bad cache")
             self.in_bad_index_cache[index] = True
             pt_indices = self.get_patient_subset(slide_idx)
             while self.in_bad_index_cache[index]:
@@ -524,18 +542,20 @@ TODO: Update doc
 
         # Label-size determines cache size, so if no label is set, we will fill cache with -999999 at __getitem__
         match self.label:
-            case 'Response' | 'Metastases' | None:
+            case "Response" | "Metastases" | None:
                 shared_y_base = mp.Array(ctypes.c_float, cache_len * [-1])
                 y_shape = ()
-            case 'Mask':
+            case "Mask":
                 shared_y_base = mp.Array(ctypes.c_float, int(cache_len * np.prod(y.shape)))
                 y_shape = tuple(y.shape)
             case _:
-                raise Exception('An unrecognized label is in use that is blocking the cache from initializing. '
-                                'Update label attribute of dataset and try again.')
+                raise Exception(
+                    "An unrecognized label is in use that is blocking the cache from initializing. "
+                    "Update label attribute of dataset and try again."
+                )
         self.shared_y = convert_mp_to_torch(shared_y_base, (cache_len,) + y_shape, device=self.device)
 
-        print('Cache opened.')
+        print("Cache opened.")
 
     def _open_bad_index_cache(self):
         # If filtering bad data, store a map of bad to good indices to avoid reprocessing the same bad samples. As we
@@ -574,10 +594,10 @@ TODO: Update doc
         # Get actual index from input index (to handle negatives)
         pt_index = list(range(len(self.features)))[pt_index]
         if self._use_atlas:
-            pt_id = self.features['ID'].at[pt_index, 'Sample']
+            pt_id = self.features["ID"].at[pt_index, "Sample"]
             indices = [i for i, path_str in enumerate(self.all_atlases) if pt_id in path_str]
         else:
-            pt_id = self.features['ID'].loc[pt_index, 'Subject']
+            pt_id = self.features["ID"].loc[pt_index, "Subject"]
             indices = [i for i, path_str in enumerate(self.all_fovs) if pt_id in path_str]
 
         # If using atlas patches, we have to determine how many patches come before this patient and add the number from
@@ -600,30 +620,36 @@ TODO: Update doc
         if self.augment_patients:
             pt_index = int(pt_index // 5)
         match self.label:
-            case 'Response':
-                y = torch.tensor(1 if self.features['FOLLOWUP DATA'].at[pt_index, 'Status (NR/R)'] == 'R' else 0,
-                                 dtype=torch.float32, device=self.device)
-            case 'Metastases':
-                y = torch.tensor(1 if self.features['FOLLOWUP DATA'].at[pt_index, 'Status (Mets/NM)'] == 'METS' else 0,
-                                 dtype=torch.float32, device=self.device)
-            case 'Mask':
+            case "Response":
+                y = torch.tensor(
+                    1 if self.features["FOLLOWUP DATA"].at[pt_index, "Status (NR/R)"] == "R" else 0,
+                    dtype=torch.float32,
+                    device=self.device,
+                )
+            case "Metastases":
+                y = torch.tensor(
+                    1 if self.features["FOLLOWUP DATA"].at[pt_index, "Status (Mets/NM)"] == "METS" else 0,
+                    dtype=torch.float32,
+                    device=self.device,
+                )
+            case "Mask":
                 # Load mask (if on or label)
                 pass
             case None:
-                y = torch.tensor(-999999,  # Placeholder for NaN label
-                                 dtype=torch.float32, device=self.device)
+                y = torch.tensor(-999999, dtype=torch.float32, device=self.device)  # Placeholder for NaN label
             case _:
                 raise Exception(
-                    'An unrecognized label is in use. Update label attribute of dataset and try again.')
+                    "An unrecognized label is in use. Update label attribute of dataset and try again."
+                )
         return y
 
     def get_patient_ID(self, pt_index):
         if self.augment_patients:
             pt_index = int(pt_index // 5)
         if type(pt_index) is int:
-            return self.features['ID'].at[pt_index, 'Subject']
+            return self.features["ID"].at[pt_index, "Subject"]
         elif type(pt_index) is str:
-            return list(self.features.index[self.features['ID']['Subject'] == pt_index])[0]
+            return list(self.features.index[self.features["ID"]["Subject"] == pt_index])[0]
 
     def is_bad_data(self, x):
         return (torch.sum(x <= 0.1).item() + torch.sum(x >= 0.9).item()) > (0.60 * np.prod(x.shape))
@@ -638,11 +664,13 @@ TODO: Update doc
     # Name
     @property
     def name(self):
-        self._name = (f"nsclc_{self.label}_{'+'.join(self.mode)}"
-                      f'{"_Histogram" if self.dist_transformed else ""}'
-                      f'{"_Augmented" if self.augmented else ""}'
-                      f'{f"_NormalizedTo-{self.normalize_method}" if self.normalize_method else ""}'
-                      f'{"_Masked" if self.mask_on else ""}')
+        self._name = (
+            f"nsclc_{self.label}_{'+'.join(self.mode)}"
+            f'{"_Histogram" if self.dist_transformed else ""}'
+            f'{"_Augmented" if self.augmented else ""}'
+            f'{f"_NormalizedTo-{self.normalize_method}" if self.normalize_method else ""}'
+            f'{"_Masked" if self.mask_on else ""}'
+        )
         return self._name
 
     # Shape
@@ -651,7 +679,7 @@ TODO: Update doc
         temp_filter = self.filter_bad_data
         self.filter_bad_data = False
         if self._use_atlas and not self.use_patches:
-            warnings.warn('`shape` is ambiguous when using non-patched atlases.')
+            warnings.warn("shape is ambiguous when using non-patched atlases.")
         self._shape = self.__getitem__(0, pool=False)[0].shape
         self.filter_bad_data = temp_filter
         return self._shape
@@ -663,18 +691,20 @@ TODO: Update doc
 
     @label.setter
     def label(self, label):
-        assert label is not None, 'Label must be provided.'
+        assert label is not None, "Label must be provided."
         match label.lower():
-            case 'response' | 'r':
-                label = 'Response'
-            case 'metastases' | 'mets' | 'm':
-                label = 'Metastases'
-            case 'mask':
-                label = 'Mask'
+            case "response" | "r":
+                label = "Response"
+            case "metastases" | "mets" | "m":
+                label = "Metastases"
+            case "mask":
+                label = "Mask"
                 self.mask_on = False
             case _:
-                raise Exception('Invalid data label entered. Allowed labels are "RESPONSE", "METASTASES", and "MASK".')
-        if hasattr(self, '_label') and label != self.label:
+                raise Exception(
+                    'Invalid data label entered. Allowed labels are "RESPONSE", "METASTASES", and "MASK".'
+                )
+        if hasattr(self, "_label") and label != self.label:
             temp_filter = self.filter_bad_data
             self._open_cache(*self[0])
             self.filter_bad_data = temp_filter
@@ -690,14 +720,14 @@ TODO: Update doc
         # Set default/shortcut behavior
         mode = [mode] if type(mode) is not list else mode
         if mode is None:
-            mode = ['orr'] if self._use_atlas else ['all']
-        if mode == ['all']:
-            mode = ['intensity', 'orr', 'shg', 'photons', 'taumean', 'boundfraction']
-        if self._use_atlas and mode[:] != 'orr':
+            mode = ["orr"] if self._use_atlas else ["all"]
+        if mode == ["all"]:
+            mode = ["intensity", "orr", "shg", "photons", "taumean", "boundfraction"]
+        if self._use_atlas and mode[:] != "orr":
             warnings.warn(f"{mode} is incompatible with atlases. Mode is being reset to 'orr'.")
-            mode = ['orr']
+            mode = ["orr"]
         # If this is not the __init__ run
-        if hasattr(self, '_mode') and mode != self.mode:
+        if hasattr(self, "_mode") and mode != self.mode:
             # A mode update is essentially a new dataset, so we will re-init it, but we want to make all the other
             # aspects match, so we check and store them first. Once the dataset is reinitialized, we can reset the
             # other properties.
@@ -709,8 +739,15 @@ TODO: Update doc
             self._mode = mode
 
             # Re-init with new modes
-            self.__init__(self.root, mode, xl_file=self.xl_file, label=self.label, mask_on=self.mask_on,
-                          transforms=self.transforms, device=self.device)
+            self.__init__(
+                self.root,
+                mode,
+                xl_file=self.xl_file,
+                label=self.label,
+                mask_on=self.mask_on,
+                transforms=self.transforms,
+                device=self.device,
+            )
 
             # Reset properties
             self.augmented = temp_aug
@@ -733,10 +770,11 @@ TODO: Update doc
             self._nbins = nbins
             if not self.normalize_method:
                 print(
-                    'Normalization to presets is automatically applied for the distribution transform.\n     '
-                    'This can be manually overwritten by setting the NORMALIZED attribute to False after transforming. '
-                    "To use max normalization, use normalize_method='minmax' before transforming.")
-                self.normalize_method = 'preset'
+                    "Normalization to presets is automatically applied for the distribution transform.\n "
+                    "This can be manually overwritten by setting the NORMALIZED attribute to False after transforming. "
+                    "To use max normalization, use normalize_method='minmax' before transforming."
+                )
+                self.normalize_method = "preset"
         self.dist_transformed = True
 
     def transform_to_psuedo_rgb(self, rgb_squeeze=None):
@@ -747,7 +785,7 @@ TODO: Update doc
     def cutoff_saturation(self):
         self.saturate = True
 
-    #region Augmentation
+    # region Augmentation
     def augment(self):
         self.augmented = True
 
@@ -772,7 +810,7 @@ TODO: Update doc
         self.augmented = augment_patients if augment_patients else self.augmented
         self._augment_patients = augment_patients
 
-    #endregion
+    # endregion
 
     # region Normalization
     @property
@@ -783,10 +821,10 @@ TODO: Update doc
     def normalize_method(self, method):
         # Set _normalized_method so images will be scaled when retrieved
         match method:
-            case 'minmax' | 'max':
-                self._normalize_method = 'minmax'
-            case 'preset':
-                self._normalize_method = 'preset'
+            case "minmax" | "max":
+                self._normalize_method = "minmax"
+            case "preset":
+                self._normalize_method = "preset"
             case None | False:
                 self._normalize_method = None
             case _:
@@ -795,7 +833,7 @@ TODO: Update doc
         # Determine appropriate scalars if a normalization method was set
         if self.normalize_method not in list(self.scalars.keys()):
             match self.normalize_method:
-                case 'minmax':
+                case "minmax":
                     # Find the max for each mode across the entire dataset. This is mildly time-consuming,
                     # so we only do it once, then store the scalar and mark the set as normalized_to_max. In
                     # order to make distributions consistent, this step will be required for dist transforms,
@@ -804,7 +842,7 @@ TODO: Update doc
                     # Temporarily turn psuedo_rgb off (if on) so we can save 2/3 memory and not have to worry about dim
                     # shifts for both cases. Temporarily turn off patching so we can save all the additional ops and
                     # just load straight from once. Temporarily turn off normalization so we can load the dataset
-                    # without  scaling by scalars as yet unset.
+                    # without scaling by scalars as yet unset.
                     temp_psuedo = self.psuedo_rgb
                     self.psuedo_rgb = False
                     temp_patch = self.use_patches
@@ -819,146 +857,60 @@ TODO: Update doc
                     for ii, (stack, _) in enumerate(self):
                         # Does the same as np.nanmax(stack, dim=(1,2)) but keeps the tensor on the GPU
                         maxes[ii] = torch.max(
-                            torch.max(torch.nan_to_num(stack, nan=-100000), 1).values, 1).values
+                            torch.max(torch.nan_to_num(stack, nan=-100000), 1).values, 1
+                        ).values
                         mins[ii] = torch.min(
-                            torch.min(torch.nan_to_num(stack, nan=100000), 1).values, 1).values
-                    self.scalars['minmax'] = torch.stack(
-                        (torch.min(mins, 0).values, torch.max(maxes, 0).values), dim=-1)
+                            torch.min(torch.nan_to_num(stack, nan=100000), 1).values, 1
+                        ).values
+                    self.scalars["minmax"] = torch.stack(
+                        (torch.min(mins, 0).values, torch.max(maxes, 0).values), dim=-1
+                    )
 
                     # Reset psuedo_rgb, patching, and filtering
                     self.psuedo_rgb = temp_psuedo
                     self.use_patches = temp_patch
                     self.filter_bad_data = temp_filter
-                    self._normalize_method = 'minmax'
+                    self._normalize_method = "minmax"
 
-                case 'preset':
+                case "preset":
                     # Set max value presets for normalization and/or saturation
-                    '''
-                    These preset values are based on the mean and standard deviation of the dataset for each mode. As a 
-                    general rule, when data is normally distributed, 99.7% of samples fall within 3 standard deviations 
-                    of the mean. We will use that then as the cutoffs for our presets. Theses were performed for masked
-                    data across all modes using the following code:
-
-                        from my_modules.nsclc import NSCLCDataset
-                        import numpy as np
-                        import torch
-                        data = NSCLCDataset(...)
-                        x = torch.tensor([])
-                        for i in range(len(data)):
-                            x = torch.cat((x, data[i][0].unsqueeze(0)), dim=0)
-                        x_bar = torch.nanmean(torch.nanmean(torch.nanmean(x, dim=0), dim=1), dim=1)
-                        sigma = np.nanstd(np.nanstd(np.nanstd(x, axis=0), axis=1), axis=1)
-                        for mode, bar, sig in zip(data.mode, x_bar, sigma):
-                            print(f"'{mode}': [{bar}, {sig}],")
-
-                    where 'data' is an instance of this class with all modes (note, not 'all' set as the mode, because 
-                    this doesn't actually give all modes)
-
-                    The results for each mode are as  included as a dict below, which will be used to calculate the 
-                    ranges for all modes.
-                    '''
-                    mean_std_mode_dict = {'fad': [0.21998976171016693, 0.0163725633174181],
-                                          'nadh': [0.4831325113773346, 0.06519994884729385],
-                                          'shg': [0.1766463816165924, 0.15144270658493042],
-                                          'intensity': [0.35156112909317017, 0.03592873364686966],
-                                          'orr': [0.3561578094959259, 0.022590430453419685],
-                                          'g': [0.3222281336784363, 0.009898046031594276],
-                                          's': [0.3749162554740906, 0.0024291533045470715],
-                                          'photons': [191.2639617919922, 11.133986473083496],
-                                          'tau1': [786.095458984375, 51.755043029785156],
-                                          'tau2': [4271.404296875, 232.18263244628906],
-                                          'alpha1': [103.16101837158203, 6.902841567993164],
-                                          'alpha2': [78.77812194824219, 4.96993350982666],
-                                          'taumean': [2319.463134765625, 95.37203979492188],
-                                          'boundfraction': [0.44960716366767883, 0.01542571373283863],
-                                          'tm': [1.0, 0.0]}  # will become [1,1]; doesn't matter since skipped
-
-                    # NEW: If 'tm' is being used, compute its mean/std from the current dataset (masked),
-                    # then build a preset range (mean ± 3*std) so Tm is also normalized to ~[0, 1] like other modes.
-                    # NOTE: This runs once when normalize_method is set to 'preset' (and scalars['preset'] isn't built yet).
-                    if any(m.lower() == 'tm' for m in self.mode) and ('tm' not in mean_std_mode_dict):
-                        # Preserve current state
-                        temp_mode = self.mode[:]
-                        temp_transforms = self.transforms
-                        temp_aug = self.augmented
-                        temp_psuedo = self.psuedo_rgb
-                        temp_patch = self.use_patches
-                        temp_filter = self.filter_bad_data
-                        temp_norm = self._normalize_method
-
-                        # Disable anything that would change values or indices; load deterministically
-                        self.transforms = None
-                        self.augmented = False
-                        self.psuedo_rgb = False
-                        self.use_patches = False
-                        self.filter_bad_data = False
-                        self._normalize_method = None  # ensure __getitem__ does NOT normalize during stats pass
-
-                        # Temporarily switch to tm-only (masking still applies if mask_on=True)
-                        self._mode = ['tm']
-                        self.stack_height = 1
-
-                        # Compute mean and std across dataset, masked; ensure units are ns (since __getitem__ converts)
-                        all_means = []
-                        all_vars = []
-                        all_counts = []
-                        for ii in range(len(self)):
-                            tm_img, _ = self.__getitem__(ii, pool=False)  # shape (1,H,W)
-                            tm = tm_img[0]
-                            tm_valid = tm[~torch.isnan(tm)]
-                            if tm_valid.numel() == 0:
-                                continue
-                            # numerically stable online aggregation
-                            m = torch.mean(tm_valid)
-                            v = torch.var(tm_valid, unbiased=False)
-                            n = tm_valid.numel()
-                            all_means.append(m)
-                            all_vars.append(v)
-                            all_counts.append(n)
-
-                        if len(all_counts) == 0:
-                            # Fallback if something is wrong (avoids crash)
-                            tm_mean = torch.tensor(0.0, device=self.device)
-                            tm_std = torch.tensor(1.0, device=self.device)
-                        else:
-                            # Combine per-image stats into global stats
-                            counts = torch.tensor(all_counts, dtype=torch.float32, device=self.device)
-                            means = torch.stack(all_means).to(self.device)
-                            vars_ = torch.stack(all_vars).to(self.device)
-
-                            total_n = torch.sum(counts)
-                            tm_mean = torch.sum(means * counts) / total_n
-
-                            # E[var] + Var[E] decomposition
-                            tm_var = torch.sum(vars_ * counts) / total_n + torch.sum(counts * (means - tm_mean) ** 2) / total_n
-                            tm_std = torch.sqrt(torch.clamp(tm_var, min=1e-12))
-
-                        mean_std_mode_dict['tm'] = [tm_mean.item(), tm_std.item()]
-
-                        # Restore state
-                        self._mode = temp_mode
-                        self.stack_height = len(self._mode)
-                        self.transforms = temp_transforms
-                        self.augmented = temp_aug
-                        self.psuedo_rgb = temp_psuedo
-                        self.use_patches = temp_patch
-                        self.filter_bad_data = temp_filter
-                        self._normalize_method = temp_norm
+                    """
+                    These preset values are based on the mean and standard deviation of the dataset for each mode. As a
+                    general rule, when data is normally distributed, 99.7% of samples fall within 3 standard deviations
+                    of the mean. We will use that then as the cutoffs for our presets.
+                    """
+                    mean_std_mode_dict = {
+                        "fad": [0.21998976171016693, 0.0163725633174181],
+                        "nadh": [0.4831325113773346, 0.06519994884729385],
+                        "shg": [0.1766463816165924, 0.15144270658493042],
+                        "intensity": [0.35156112909317017, 0.03592873364686966],
+                        "orr": [0.3561578094959259, 0.022590430453419685],
+                        "g": [0.3222281336784363, 0.009898046031594276],
+                        "s": [0.3749162554740906, 0.0024291533045470715],
+                        "photons": [191.2639617919922, 11.133986473083496],
+                        "tau1": [786.095458984375, 51.755043029785156],
+                        "tau2": [4271.404296875, 232.18263244628906],
+                        "alpha1": [103.16101837158203, 6.902841567993164],
+                        "alpha2": [78.77812194824219, 4.96993350982666],
+                        "taumean": [2319.463134765625, 95.37203979492188],
+                        "boundfraction": [0.44960716366767883, 0.01542571373283863],
+                    }
 
                     self._preset_values = {}
                     for key, (m, s) in mean_std_mode_dict.items():
                         self._preset_values[key] = [m - (3 * s), m + (3 * s)]
 
-                    # Build preset scalars for the *current* mode list (now including tm if requested)
-                    self.scalars['preset'] = torch.tensor(
+                    self.scalars["preset"] = torch.tensor(
                         [self._preset_values[mode] for mode in self.mode],
-                        dtype=torch.float32, device=self.device)
+                        dtype=torch.float32,
+                        device=self.device,
+                    )
 
     # endregion
     # endregion
 
     # region Show data samples
-    def show(self, index, stack_as_rgb=False, cmap='gray'):
+    def show(self, index, stack_as_rgb=False, cmap="gray"):
         slide_idx, *_ = self.__parse_index__(index)
         if self.dist_transformed:
             fig = plt.figure(index)
@@ -966,8 +918,10 @@ TODO: Update doc
             ax.plot(self[index][0].T, label=self.mode)
             ax.legend()
             ax.tick_params(top=False, bottom=False, left=False, right=False, labelleft=False, labelbottom=False)
-            ax.set_title(f'{self.features["ID"]["Slide Name"].iloc[slide_idx]}, {self.label}: {self[index][1]}',
-                         fontsize=10)
+            ax.set_title(
+                f"{self.features['ID']['Slide Name'].iloc[slide_idx]}, {self.label}: {self[index][1]}",
+                fontsize=10,
+            )
         else:
             transform = t.ToPILImage()
             if stack_as_rgb:
@@ -979,23 +933,30 @@ TODO: Update doc
                 img = self[index][0]
                 img[torch.isnan(img)] = 0
                 ax.imshow(transform(img), cmap=cmap)
-                ax.tick_params(top=False, bottom=False, left=False, right=False,
-                               labelleft=False, labelbottom=False)
-                ax.set_title(f'{self.mode[:]}', fontsize=10)
+                ax.tick_params(top=False, bottom=False, left=False, right=False, labelleft=False, labelbottom=False)
+                ax.set_title(f"{self.mode[:]}", fontsize=10)
             else:
                 for ii in range(self.stack_height):
                     img = self[index][0][ii]
                     img[torch.isnan(img)] = 0
                     ax[ii].imshow(transform(img), cmap=cmap)
-                    ax[ii].tick_params(top=False, bottom=False, left=False, right=False,
-                                       labelleft=False, labelbottom=False)
-                    ax[ii].set_title(f'{self.mode[ii]}', fontsize=10)
-            fig.suptitle(f'{self.features["ID"]["Slide Name"].iloc[slide_idx]}, {self.label}: {self[index][1]}',
-                         fontsize=10)
+                    ax[ii].tick_params(
+                        top=False,
+                        bottom=False,
+                        left=False,
+                        right=False,
+                        labelleft=False,
+                        labelbottom=False,
+                    )
+                    ax[ii].set_title(f"{self.mode[ii]}", fontsize=10)
+            fig.suptitle(
+                f"{self.features['ID']['Slide Name'].iloc[slide_idx]}, {self.label}: {self[index][1]}",
+                fontsize=10,
+            )
             plt.show()
         return fig, ax
 
-    def show_random(self, stack_as_rgb=False, n=5, cmap='gray'):
+    def show_random(self, stack_as_rgb=False, n=5, cmap="gray"):
         for ii in range(n):
             index = np.random.randint(0, len(self))
             self.show(index, stack_as_rgb=stack_as_rgb, cmap=cmap)
@@ -1008,9 +969,9 @@ TODO: Update doc
         if self.augment_patients:
             pt_index = int(pt_index // 5)
         # Use the 'Slide Name' column if it exists, otherwise fall back to Subject ID
-        if 'Slide Name' in self.features['ID'].columns:
-            return self.features['ID'].at[pt_index, 'Slide Name']
+        if "Slide Name" in self.features["ID"].columns:
+            return self.features["ID"].at[pt_index, "Slide Name"]
         else:
-            return self.features['ID'].at[pt_index, 'Subject']
+            return self.features["ID"].at[pt_index, "Subject"]
 
     # endregion
