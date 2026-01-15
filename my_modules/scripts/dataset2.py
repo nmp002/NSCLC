@@ -913,6 +913,7 @@ class NSCLCDataset(Dataset):
                         "alpha1": [103.16101837158203, 6.902841567993164],
                         "alpha2": [78.77812194824219, 4.96993350982666],
                         "taumean": [2319.463134765625, 95.37203979492188],
+                        "tm": [2319.463134765625, 95.37203979492188],
                         "boundfraction": [0.44960716366767883, 0.01542571373283863],
                     }
 
@@ -921,7 +922,7 @@ class NSCLCDataset(Dataset):
                         self._preset_values[key] = [m - (3 * s), m + (3 * s)]
 
                     self.scalars["preset"] = torch.tensor(
-                        [self._preset_values[mode] for mode in self.mode],
+                        [self._preset_values[mode.lower()] for mode in self.mode],
                         dtype=torch.float32,
                         device=self.device,
                     )
