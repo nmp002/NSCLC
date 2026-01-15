@@ -272,7 +272,7 @@ class NSCLCDataset(Dataset):
             # Remove items that are missing a called mode
             # Note the [:] makes a copy of the list so indices don't change on removal
             for ii, fov_lut in enumerate(self.fov_mode_dict[:]):
-                for mode in self.mode:
+                for mode in [m.lower() for m in self.mode]:
                     match mode.lower():
                         case "taumean":
                             if not all(
