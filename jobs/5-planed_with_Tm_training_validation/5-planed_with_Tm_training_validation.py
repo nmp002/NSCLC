@@ -67,6 +67,7 @@ def main():
         device=torch.device("cpu"),
         label="Metastases",
         mask_on=True,
+        remove_empties=False
     )
     eval_data = NSCLCDataset(
         "NSCLC_Data_for_ML",
@@ -74,6 +75,7 @@ def main():
         device=torch.device("cpu"),
         label="Metastases",
         mask_on=True,
+        remove_empties=False
     )
 
     if FAST_TEST:
