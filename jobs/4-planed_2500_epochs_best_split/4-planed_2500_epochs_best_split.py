@@ -7,6 +7,7 @@
 
 import os
 import random
+
 import numpy as np
 import pandas as pd
 import torch
@@ -45,36 +46,41 @@ def main():
     random.seed(42)
     np.random.seed(42)
 
-    print(f'Num cores: {mp.cpu_count()}')
-    print(f'Num GPUs: {torch.cuda.device_count()}')
+    print(f"Num cores: {mp.cpu_count()}")
+    print(f"Num GPUs: {torch.cuda.device_count()}")
+
     try:
-        mp.set_start_method('forkserver', force=True)
+        mp.set_start_method("forkserver", force=True)
     except RuntimeError:
         pass
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # ------------------------------------------------------------------
     # Data  (4 modes: fad, nadh, shg, orr)
     # ------------------------------------------------------------------
-    # Update: add mean lifetime (Tm.asc) as a 5th input plane: 'tm'
-    modes = ['fad', 'nadh', 'shg', 'orr', 'tm']
+    modes = ["fad", "nadh", "shg", "orr"]
 
-    train_data = NSCLCDataset('NSCLC_Data_for_ML',
-                              modes,
-                              device=torch.device('cpu'),
-                              label='Metastases',
-                              mask_on=True)
-    eval_data = NSCLCDataset('NSCLC_Data_for_ML',
-                             modes,
-                             device=torch.device('cpu'),
-                             label='Metastases',
-                             mask_on=True)
+    train_data = NSCLCDataset(
+        "NSCLC_Data_for_ML",
+        modes,
+        device=torch.device("cpu"),
+        label="Metastases",
+        mask_on=True,
+    )
+    eval_data = NSCLCDataset(
+        "NSCLC_Data_for_ML",
+        modes,
+        device=torch.device("cpu"),
+        label="Metastases",
+        mask_on=True,
+    )
 
     if FAST_TEST:
         train_data.augmented = False
         eval_data.augmented = False
-        train_data.normalize_method = 'preset'
-        eval_data.normalize_method = 'preset'
+        train_data.normalize_method = "preset"
+        eval_data.normalize_method = "preset"
         train_data.transforms = None
         eval_data.transforms = None
         train_data.to(device)
@@ -83,15 +89,17 @@ def main():
         batch_size = 8
     else:
         train_data.augment()
-        train_data.normalize_method = 'preset'
+        train_data.normalize_method = "preset"
         train_data.to(device)
-        train_data.transforms = tvt.Compose([
-            tvt.RandomVerticalFlip(p=0.25),
-            tvt.RandomHorizontalFlip(p=0.25),
-            tvt.RandomRotation(degrees=(-180, 180))
-        ])
+        train_data.transforms = tvt.Compose(
+            [
+                tvt.RandomVerticalFlip(p=0.25),
+                tvt.RandomHorizontalFlip(p=0.25),
+                tvt.RandomRotation(degrees=(-180, 180)),
+            ]
+        )
 
-        eval_data.normalize_method = 'preset'
+        eval_data.normalize_method = "preset"
         eval_data.to(device)
         total_epochs = TOTAL_EPOCHS
         batch_size = 64
@@ -109,20 +117,22 @@ def main():
     train_set = torch.utils.data.Subset(train_data, train_img_idx)
     val_set_stageII = torch.utils.data.Subset(eval_data, val_img_idx_stageII)
 
-    train_loader = torch.utils.data.DataLoader(train_set,
-                                               batch_size=batch_size,
-                                               shuffle=True,
-                                               num_workers=0)
-    val_loader_stageII = torch.utils.data.DataLoader(val_set_stageII,
-                                                     batch_size=batch_size,
-                                                     shuffle=False,
-                                                     num_workers=0)
+    train_loader = torch.utils.data.DataLoader(
+        train_set,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=0,
+    )
+    val_loader_stageII = torch.utils.data.DataLoader(
+        val_set_stageII,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=0,
+    )
 
     # ------------------------------------------------------------------
     # Model (only 5-planed ResNet18 variant)
     # ------------------------------------------------------------------
-    # Update: this remains correct—ResNet18NPlaned will infer number of planes
-    # from train_data.shape (now 5 planes because modes includes 'tm').
     model = ResNet18NPlaned(train_data.shape, start_width=64, n_classes=1)
     if torch.cuda.is_available() and not next(model.parameters()).is_cuda:
         model.to(device)
@@ -134,9 +144,9 @@ def main():
     optimizer = torch.optim.Adam(model.parameters(), lr=LR, weight_decay=WD)
 
     # output dirs and files
-    os.makedirs('outputs', exist_ok=True)
-    os.makedirs(f'outputs/{model.name}/plots', exist_ok=True)
-    os.makedirs(f'outputs/{model.name}/models', exist_ok=True)
+    os.makedirs("outputs", exist_ok=True)
+    os.makedirs(f"outputs/{model.name}/plots", exist_ok=True)
+    os.makedirs(f"outputs/{model.name}/models", exist_ok=True)
 
     train_loss = []
     train_auc = []
@@ -147,7 +157,7 @@ def main():
     # Training loop
     # ------------------------------------------------------------------
     for ep in range(total_epochs):
-        print(f'\nEpoch {ep + 1}/{total_epochs}')
+        print(f"\nEpoch {ep + 1}/{total_epochs}")
 
         # ---- Training ----
         model.train()
@@ -178,7 +188,7 @@ def main():
             epoch_train_auc = 0.0
         train_auc.append(epoch_train_auc)
 
-        print(f'>>> {model.name}: Train Loss={epoch_train_loss:.4f}, Train AUC={epoch_train_auc:.4f}')
+        print(f">>> {model.name}: Train Loss={epoch_train_loss:.4f}, Train AUC={epoch_train_auc:.4f}")
 
         # ---- Validation (Stage II test set used as validation) ----
         model.eval()
@@ -205,58 +215,66 @@ def main():
             epoch_val_auc = 0.0
         val_auc.append(epoch_val_auc)
 
-        print(f'>>> {model.name}: Val Loss={epoch_val_loss:.4f}, Val AUC={epoch_val_auc:.4f}')
+        print(f">>> {model.name}: Val Loss={epoch_val_loss:.4f}, Val AUC={epoch_val_auc:.4f}")
 
         # ---- Save model + plots every SAVE_INTERVAL epochs ----
         epoch_num = ep + 1
         if (epoch_num % SAVE_INTERVAL == 0) or (epoch_num == total_epochs):
             # Save model
-            model_path = f'outputs/{model.name}/models/{model.name}_lr_{LR}_wd_{WD}_epoch{epoch_num}.pth'
+            model_path = (
+                f"outputs/{model.name}/models/{model.name}_lr_{LR}_wd_{WD}_epoch{epoch_num}.pth"
+            )
             torch.save(model.state_dict(), model_path)
-            print(f'Saved model checkpoint: {model_path}')
+            print(f"Saved model checkpoint: {model_path}")
 
             # Save curves up to current epoch
-            df = pd.DataFrame({
-                'Training Loss': train_loss,
-                'Validation Loss': val_loss,
-                'Training ROC-AUC': train_auc,
-                'Validation ROC-AUC': val_auc
-            }, index=range(1, len(train_loss) + 1))
+            df = pd.DataFrame(
+                {
+                    "Training Loss": train_loss,
+                    "Validation Loss": val_loss,
+                    "Training ROC-AUC": train_auc,
+                    "Validation ROC-AUC": val_auc,
+                },
+                index=range(1, len(train_loss) + 1),
+            )
 
-            df.to_csv(f'outputs/{model.name}/tabular_train_val_lr_{LR}_wd_{WD}.csv', index_label='Epoch')
+            df.to_csv(
+                f"outputs/{model.name}/tabular_train_val_lr_{LR}_wd_{WD}.csv",
+                index_label="Epoch",
+            )
 
             # Plot loss and AUC with train vs val overlaid
             fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 5))
-            plt.suptitle(f'{model.name} (up to epoch {epoch_num})')
+            plt.suptitle(f"{model.name} (up to epoch {epoch_num})")
 
             # Loss
-            ax1.plot(df.index, df['Training Loss'], label='Train Loss')
-            ax1.plot(df.index, df['Validation Loss'], label='Val Loss')
-            ax1.set_xlabel('Epoch')
-            ax1.set_ylabel('Loss')
-            ax1.set_title('Training vs Validation Loss')
+            ax1.plot(df.index, df["Training Loss"], label="Train Loss")
+            ax1.plot(df.index, df["Validation Loss"], label="Val Loss")
+            ax1.set_xlabel("Epoch")
+            ax1.set_ylabel("Loss")
+            ax1.set_title("Training vs Validation Loss")
             ax1.legend()
 
             # AUC
-            ax2.plot(df.index, df['Training ROC-AUC'], label='Train AUC')
-            ax2.plot(df.index, df['Validation ROC-AUC'], label='Val AUC')
-            ax2.set_xlabel('Epoch')
-            ax2.set_ylabel('AUC')
-            ax2.set_title('Training vs Validation ROC-AUC')
+            ax2.plot(df.index, df["Training ROC-AUC"], label="Train AUC")
+            ax2.plot(df.index, df["Validation ROC-AUC"], label="Val AUC")
+            ax2.set_xlabel("Epoch")
+            ax2.set_ylabel("AUC")
+            ax2.set_title("Training vs Validation ROC-AUC")
             ax2.legend()
 
             # Save with epoch in filename
-            fig_path = f'outputs/{model.name}/plots/loss_auc_curves_epoch{epoch_num:04d}.png'
+            fig_path = f"outputs/{model.name}/plots/loss_auc_curves_epoch{epoch_num:04d}.png"
             fig.savefig(fig_path)
             plt.close(fig)
 
             # Also (optionally) save/update a "latest" plot
-            latest_path = f'outputs/{model.name}/plots/loss_auc_curves_lr_{LR}_wd_{WD}.png'
+            latest_path = f"outputs/{model.name}/plots/loss_auc_curves_lr_{LR}_wd_{WD}.png"
             os.replace(fig_path, latest_path)
-            print(f'Saved loss/AUC curves to {latest_path}')
+            print(f"Saved loss/AUC curves to {latest_path}")
 
-    print('\nTraining complete.')
+    print("\nTraining complete.")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
