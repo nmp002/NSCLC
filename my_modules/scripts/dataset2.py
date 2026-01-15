@@ -308,6 +308,24 @@ class NSCLCDataset(Dataset):
 
         self.patient_count = self.total_patient_count
 
+        # ---- DEBUG: verify Tm.asc discovery ----
+        if "tm" in self.mode_dict:
+            tm_paths = []
+            tm_missing = 0
+            for lut in self.fov_mode_dict:
+                p = lut.get("tm", [None, None])[1]
+                if p is None:
+                    tm_missing += 1
+                else:
+                    tm_paths.append(p)
+
+            print(f"[dataset2] Tm.asc found in {len(tm_paths)}/{len(self.fov_mode_dict)} FOVs "
+                  f"(missing: {tm_missing})")
+
+            # show a few examples
+            for p in tm_paths[:5]:
+                print(f"[dataset2] example tm: {p}")
+
         # Remove empty patients entirely
         if remove_empties:
             self.remove_empty()
