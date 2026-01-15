@@ -59,7 +59,7 @@ def main():
     # ------------------------------------------------------------------
     # Data  (5 modes: fad, nadh, shg, orr, Tm)
     # ------------------------------------------------------------------
-    modes = ["fad", "nadh", "shg", "orr", "Tm"]
+    modes = ["fad", "nadh", "shg", "orr", "tm"]
 
     train_data = NSCLCDataset(
         "NSCLC_Data_for_ML",
