@@ -20,7 +20,7 @@ import torch.nn as nn
 
 from my_modules.models.classifier_models import ResNet18NPlaned
 from my_modules.scripts.helper_functions import set_seed
-from my_modules.scripts.dataset import NSCLCDataset
+from my_modules.scripts.dataset2 import NSCLCDataset
 
 # ------------------------------------------------------------------
 # Config
