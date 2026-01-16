@@ -57,9 +57,9 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # ------------------------------------------------------------------
-    # Data  (5 modes: fad, nadh, shg, orr, Tm)
+    # Data  (5 modes: fad, nadh, shg, orr, tm)
     # ------------------------------------------------------------------
-    modes = ["tm"]
+    modes = ["fad"]
     modes_tag = "_".join([m.lower() for m in modes])
 
     train_data = NSCLCDataset(
