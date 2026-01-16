@@ -60,6 +60,7 @@ def main():
     # Data  (5 modes: fad, nadh, shg, orr, Tm)
     # ------------------------------------------------------------------
     modes = ["tm"]
+    modes_tag = "_".join([m.lower() for m in modes])
 
     train_data = NSCLCDataset(
         "NSCLC_Data_for_ML",
@@ -146,9 +147,10 @@ def main():
     optimizer = torch.optim.Adam(model.parameters(), lr=LR, weight_decay=WD)
 
     # output dirs and files
+    run_name = f"{model.name}_{modes_tag}"
     os.makedirs("outputs", exist_ok=True)
-    os.makedirs(f"outputs/{model.name}/plots", exist_ok=True)
-    os.makedirs(f"outputs/{model.name}/models", exist_ok=True)
+    os.makedirs(f"outputs/{run_name}/plots", exist_ok=True)
+    os.makedirs(f"outputs/{run_name}/models", exist_ok=True)
 
     train_loss = []
     train_auc = []
@@ -224,7 +226,7 @@ def main():
         if (epoch_num % SAVE_INTERVAL == 0) or (epoch_num == total_epochs):
             # Save model
             model_path = (
-                f"outputs/{model.name}/models/{model.name}_lr_{LR}_wd_{WD}_epoch{epoch_num}.pth"
+                f"outputs/{run_name}/models/{run_name}_lr_{LR}_wd_{WD}_epoch{epoch_num}.pth"
             )
             torch.save(model.state_dict(), model_path)
             print(f"Saved model checkpoint: {model_path}")
@@ -241,7 +243,7 @@ def main():
             )
 
             df.to_csv(
-                f"outputs/{model.name}/tabular_train_val_lr_{LR}_wd_{WD}.csv",
+                f"outputs/{run_name}/tabular_train_val_lr_{run_name}_{LR}_wd_{WD}.csv",
                 index_label="Epoch",
             )
 
@@ -266,12 +268,12 @@ def main():
             ax2.legend()
 
             # Save with epoch in filename
-            fig_path = f"outputs/{model.name}/plots/loss_auc_curves_epoch{epoch_num:04d}.png"
+            fig_path = f"outputs/{run_name}/plots/loss_auc_curves_epoch{epoch_num:04d}.png"
             fig.savefig(fig_path)
             plt.close(fig)
 
             # Also (optionally) save/update a "latest" plot
-            latest_path = f"outputs/{model.name}/plots/loss_auc_curves_lr_{LR}_wd_{WD}.png"
+            latest_path = f"outputs/{run_name}/plots/loss_auc_curves_lr_{LR}_wd_{WD}.png"
             os.replace(fig_path, latest_path)
             print(f"Saved loss/AUC curves to {latest_path}")
 
