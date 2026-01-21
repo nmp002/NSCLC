@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #SBATCH --job-name=5-planed_with_Tm_training_validation
-#SBATCH --partition=agpu06
+#SBATCH --partition=agpu72
 #SBATCH --output=nsclc_main.txt
 #SBATCH --error=nsclc_main.err
 #SBATCH --mail-type=ALL
