@@ -181,7 +181,7 @@ def main():
     # ---------------------------------------------------------
     model_files = [
         f for f in os.listdir(MODELS_DIR)
-        if f.endswith(".pth")
+        if f.startswith("2-planed")
     ]
     if len(model_files) == 0:
         print("\nNo models found.")
