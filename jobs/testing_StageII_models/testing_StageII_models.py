@@ -27,7 +27,7 @@ from my_modules.scripts.dataset import NSCLCDataset
 # CONFIG
 # ---------------------------------------------------------
 POOL_METHOD = 'max'        # 'min', 'max', 'majority', 'mean', or 'median'
-MODELS_DIR = "/home/nmp002/NSCLC/jobs/testing_4-planed_best_split/models/"
+MODELS_DIR = "/home/nmp002/NSCLC/jobs/testing_StageII_models/models/"
 
 TRAIN_PTS = [26, 22, 28, 24, 33, 17, 31, 25,
              27, 21, 13, 16, 35, 19, 20, 15, 32]
