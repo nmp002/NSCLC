@@ -162,7 +162,7 @@ def main():
     print("Loading dataset ...")
     data = NSCLCDataset(
         'NSCLC_Data_for_ML',
-        ["nadh","tm"],
+        ["fad", "nadh", "orr", "tm"],
         device=torch.device('cpu'),
         label='Metastases',
         mask_on=True,
@@ -181,7 +181,7 @@ def main():
     # ---------------------------------------------------------
     model_files = [
         f for f in os.listdir(MODELS_DIR)
-        if f.startswith("2-Planed")
+        if f.startswith("4-Planed") # change on model-to-model basis
     ]
     if len(model_files) == 0:
         print("\nNo models found.")
@@ -242,7 +242,7 @@ def main():
         # STAGE II ONLY @ CONSTANT THRESHOLD 0.3358
         # ============================================================
 
-        CONST_THR = 0.3358
+        CONST_THR = 0.3358 # can change based on optimized-training threshold
 
         TEST_SETS = {
             "const_thr0p3358_stageII": TEST_PTS_STAGEII,
@@ -320,5 +320,4 @@ def main():
     print("=========================================\n")
 
 
-if __name__ == "__main__":
-    main()
+if __n
