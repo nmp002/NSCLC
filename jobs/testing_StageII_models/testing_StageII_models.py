@@ -165,7 +165,8 @@ def main():
         ["fad", "nadh", "orr", "tm"],
         device=torch.device('cpu'),
         label='Metastases',
-        mask_on=True
+        mask_on=True,
+        remove_empties=False
     )
 
     data.augment()
