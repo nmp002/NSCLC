@@ -20,7 +20,7 @@ from my_modules.models.classifier_models import (
 )
 from my_modules.scripts.model_metrics import score_model
 from my_modules.scripts.helper_functions import set_seed
-from my_modules.scripts.dataset import NSCLCDataset
+from my_modules.scripts.dataset2 import NSCLCDataset
 
 
 # ---------------------------------------------------------
@@ -162,7 +162,7 @@ def main():
     print("Loading dataset ...")
     data = NSCLCDataset(
         'NSCLC_Data_for_ML',
-        ['Tm'],
+        ['tm'],
         device=torch.device('cpu'),
         label='Metastases',
         mask_on=True
