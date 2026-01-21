@@ -331,18 +331,38 @@ class NSCLCDataset(Dataset):
             self.remove_empty()
 
     def remove_empty(self):
+        """
+        Drop patients (rows in features) that have zero FOVs.
+        This version is index-safe and does not assume empty lists exist in fovs_by_subject.
+        """
+        # Identify which patient indices have no images
         for_removal = []
         for pt in range(self.total_patient_count):
             if len(self.get_patient_subset(pt)) == 0:
-                self.patient_count -= 1
                 for_removal.append(pt)
 
-        for pt in for_removal:
-            self.features.drop(pt, inplace=True)
-            self.fovs_by_subject.remove([])
+        if not for_removal:
+            # Nothing to do; still ensure patient_count is consistent
+            self.patient_count = len(self.features)
+            return
 
-        # Reindex patients
+        # Drop from highest index -> lowest index so list indices remain valid
+        for pt in sorted(for_removal, reverse=True):
+            # Drop the row from the features DataFrame
+            self.features.drop(pt, inplace=True)
+
+            # Remove the corresponding nested list entry (if it exists)
+            if hasattr(self, "fovs_by_subject") and pt < len(self.fovs_by_subject):
+                self.fovs_by_subject.pop(pt)
+            if hasattr(self, "atlases_by_sample") and pt < len(self.atlases_by_sample):
+                self.atlases_by_sample.pop(pt)
+
+        # Reindex features after drops
         self.features.index = range(len(self.features))
+
+        # Update counts to match new feature table length
+        self.total_patient_count = len(self.features)
+        self.patient_count = self.total_patient_count
 
     def __len__(self):
         if self._use_atlas:
