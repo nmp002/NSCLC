@@ -162,7 +162,7 @@ def main():
     print("Loading dataset ...")
     data = NSCLCDataset(
         'NSCLC_Data_for_ML',
-        ["tm"],
+        ["nadh", "fad"],
         device=torch.device('cpu'),
         label='Metastases',
         mask_on=True,
@@ -181,7 +181,7 @@ def main():
     # ---------------------------------------------------------
     model_files = [
         f for f in os.listdir(MODELS_DIR)
-        if f.startswith("1-Planed") # change on model-to-model basis
+        if f.startswith("2-Planed ResNet18_nadh_fad_lr_1e-07_wd_0.2_epoch2500") # change on model-to-model basis
     ]
     if len(model_files) == 0:
         print("\nNo models found.")
@@ -225,7 +225,7 @@ def main():
             threshold_type='roc'
         )
 
-        thr_train = scores.get("Optimal Threshold from ROC", 0.5602)
+        thr_train = scores.get("Optimal Threshold from ROC", 0.5)
 
         fig.savefig(os.path.join(out_dir, "train_ROC.png"))
         plt.close(fig)
@@ -239,13 +239,13 @@ def main():
                     f.write(f"{key:<40} {format_metric(item)}\n")
 
         # ============================================================
-        # STAGE II ONLY @ CONSTANT THRESHOLD 0.5602
+        # STAGE II ONLY @ CONSTANT THRESHOLD 0.5
         # ============================================================
 
-        CONST_THR = 0.5602 # can change based on optimized-training threshold
+        CONST_THR = 0.5 # can change based on optimized-training threshold
 
         TEST_SETS = {
-            "const_thr0p5602_stageII": TEST_PTS_STAGEII,
+            "const_thr0p5_stageII": TEST_PTS_STAGEII,
         }
 
         for test_name, pt_list in TEST_SETS.items():
@@ -287,19 +287,19 @@ def main():
             ax.set_yticks([0, 1])
             ax.set_xticklabels(["Pred 0", "Pred 1"])
             ax.set_yticklabels(["True 0", "True 1"])
-            ax.set_title(f"Confusion Matrix @0.5602\n({test_name})")
+            ax.set_title(f"Confusion Matrix @0.5\n({test_name})")
 
             for (i, j), v in np.ndenumerate(cm):
                 ax.text(j, i, str(v), ha="center", va="center")
 
-            fig_cm.savefig(os.path.join(out_test, "confusion_matrix_thr0p5602.png"))
+            fig_cm.savefig(os.path.join(out_test, "confusion_matrix_thr0p5.png"))
             plt.close(fig_cm)
 
             acc = float((preds == pt_labels).float().mean())
             sens = TP / (TP + FN + 1e-9)
             spec = TN / (TN + FP + 1e-9)
 
-            with open(os.path.join(out_test, "results_thr0p5602.txt"), "w") as f:
+            with open(os.path.join(out_test, "results_thr0p5.txt"), "w") as f:
                 f.write(f"Model: {model_name}\n")
                 f.write(f"Test Set: {test_name}\n")
                 f.write(f"Pooling: {POOL_METHOD}\n")
