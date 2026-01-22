@@ -225,7 +225,7 @@ def main():
             threshold_type='roc'
         )
 
-        thr_train = scores.get("Optimal Threshold from ROC", 0.5)
+        thr_train = scores.get("Optimal Threshold from ROC", 0.3129)
 
         fig.savefig(os.path.join(out_dir, "train_ROC.png"))
         plt.close(fig)
@@ -239,13 +239,13 @@ def main():
                     f.write(f"{key:<40} {format_metric(item)}\n")
 
         # ============================================================
-        # STAGE II ONLY @ CONSTANT THRESHOLD 0.5
+        # STAGE II ONLY @ CONSTANT THRESHOLD 0.3129
         # ============================================================
 
-        CONST_THR = 0.5 # can change based on optimized-training threshold
+        CONST_THR = 0.3129 # can change based on optimized-training threshold
 
         TEST_SETS = {
-            "const_thr0p5_stageII": TEST_PTS_STAGEII,
+            "const_thr0p3129_stageII": TEST_PTS_STAGEII,
         }
 
         for test_name, pt_list in TEST_SETS.items():
@@ -287,19 +287,19 @@ def main():
             ax.set_yticks([0, 1])
             ax.set_xticklabels(["Pred 0", "Pred 1"])
             ax.set_yticklabels(["True 0", "True 1"])
-            ax.set_title(f"Confusion Matrix @0.5\n({test_name})")
+            ax.set_title(f"Confusion Matrix @0.3129\n({test_name})")
 
             for (i, j), v in np.ndenumerate(cm):
                 ax.text(j, i, str(v), ha="center", va="center")
 
-            fig_cm.savefig(os.path.join(out_test, "confusion_matrix_thr0p5.png"))
+            fig_cm.savefig(os.path.join(out_test, "confusion_matrix_thr0p3129.png"))
             plt.close(fig_cm)
 
             acc = float((preds == pt_labels).float().mean())
             sens = TP / (TP + FN + 1e-9)
             spec = TN / (TN + FP + 1e-9)
 
-            with open(os.path.join(out_test, "results_thr0p5.txt"), "w") as f:
+            with open(os.path.join(out_test, "results_thr0p3129.txt"), "w") as f:
                 f.write(f"Model: {model_name}\n")
                 f.write(f"Test Set: {test_name}\n")
                 f.write(f"Pooling: {POOL_METHOD}\n")
