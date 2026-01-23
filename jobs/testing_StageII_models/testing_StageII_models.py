@@ -269,30 +269,77 @@ def main():
                 threshold_type='fixed',
                 threshold=CONST_THR
             )
+
+            from sklearn.metrics import roc_curve, auc, precision_recall_curve, average_precision_score, \
+                confusion_matrix
+            from scipy.io import savemat
+            import numpy as np
+            import os
+
+            # ----- inputs used by score_model -----
+            y_true = pt_labels.detach().cpu().numpy().astype(int).ravel()
+            y_score = pt_probs.detach().cpu().numpy().astype(float).ravel()
+
+            # ----- ROC -----
+            fpr, tpr, roc_thr = roc_curve(y_true, y_score, pos_label=1, drop_intermediate=False)
+            roc_auc = auc(fpr, tpr)
+
+            # ----- PR -----
+            precision, recall, pr_thr = precision_recall_curve(y_true, y_score)
+            ap = average_precision_score(y_true, y_score)
+
+            # ----- Confusion matrix (match your script’s CONST_THR) -----
+            thr_used = float(CONST_THR)  # or float(scores_test.get("Threshold Used", CONST_THR))
+            y_pred = (y_score >= thr_used).astype(int)
+            cm = confusion_matrix(y_true, y_pred, labels=[0, 1])  # [[TN, FP],[FN, TP]]
+
+            # ----- save -----
+            savemat(os.path.join(out_test, "curves_and_cm.mat"), {
+                # raw
+                "y_true": y_true.reshape(-1, 1),
+                "y_score": y_score.reshape(-1, 1),
+                "thr_used": np.array([[thr_used]]),
+
+                # ROC
+                "fpr": fpr.reshape(-1, 1),
+                "tpr": tpr.reshape(-1, 1),
+                "roc_thr": roc_thr.reshape(-1, 1),
+                "roc_auc": np.array([[roc_auc]]),
+
+                # PR
+                "precision": precision.reshape(-1, 1),
+                "recall": recall.reshape(-1, 1),
+                "pr_thr": pr_thr.reshape(-1, 1),  # length = len(precision)-1
+                "average_precision": np.array([[ap]]),
+
+                # Confusion matrix
+                "cm": cm.astype(np.int64),
+            })
+
             fig_roc.savefig(os.path.join(out_test, "ROC_curve.png"))
             plt.close(fig_roc)
 
-            from sklearn.metrics import roc_curve, auc
-            from scipy.io import savemat
-
-            # ---- EXPORT ROC DATA (patient-wise, training set) ----
-            y_true = pt_labels.detach().cpu().numpy().astype(int)
-            y_score = pt_probs.detach().cpu().numpy().astype(float)
-
-            fpr, tpr, thr = roc_curve(y_true, y_score)
-            roc_auc = auc(fpr, tpr)
-
-            savemat(
-                os.path.join(out_dir, "train_ROC_data.mat"),
-                {
-                    "fpr": fpr,
-                    "tpr": tpr,
-                    "thr": thr,
-                    "auc": np.array([roc_auc]),
-                    "y_true": y_true,
-                    "y_score": y_score,
-                }
-            )
+            # from sklearn.metrics import roc_curve, auc
+            # from scipy.io import savemat
+            #
+            # # ---- EXPORT ROC DATA (patient-wise, training set) ----
+            # y_true = pt_labels.detach().cpu().numpy().astype(int)
+            # y_score = pt_probs.detach().cpu().numpy().astype(float)
+            #
+            # fpr, tpr, thr = roc_curve(y_true, y_score)
+            # roc_auc = auc(fpr, tpr)
+            #
+            # savemat(
+            #     os.path.join(out_dir, "train_ROC_data.mat"),
+            #     {
+            #         "fpr": fpr,
+            #         "tpr": tpr,
+            #         "thr": thr,
+            #         "auc": np.array([roc_auc]),
+            #         "y_true": y_true,
+            #         "y_score": y_score,
+            #     }
+            # )
 
             preds = (pt_probs >= CONST_THR).long()
 
