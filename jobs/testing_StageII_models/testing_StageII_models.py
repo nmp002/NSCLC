@@ -148,6 +148,12 @@ def instantiate_model_by_name(name, data_shape):
 # ---------------------------------------------------------
 
 def main():
+    import os
+    import random
+    import numpy as np
+    import pandas as pd
+    import torch
+    from matplotlib import pyplot as plt
     set_seed(42)
     random.seed(42)
     np.random.seed(42)
