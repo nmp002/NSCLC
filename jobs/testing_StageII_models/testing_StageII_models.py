@@ -230,27 +230,6 @@ def main():
         fig.savefig(os.path.join(out_dir, "train_ROC.png"))
         plt.close(fig)
 
-        from sklearn.metrics import roc_curve, auc
-        from scipy.io import savemat
-
-        # ---- EXPORT ROC DATA (patient-wise, training set) ----
-        y_true = pt_labels.detach().cpu().numpy().astype(int)
-        y_score = pt_probs.detach().cpu().numpy().astype(float)
-
-        fpr, tpr, thr = roc_curve(y_true, y_score)
-        roc_auc = auc(fpr, tpr)
-
-        savemat(
-            os.path.join(out_dir, "train_ROC_data.mat"),
-            {
-                "fpr": fpr,
-                "tpr": tpr,
-                "thr": thr,
-                "auc": np.array([roc_auc]),
-                "y_true": y_true,
-                "y_score": y_score,
-            }
-        )
 
         with open(os.path.join(out_dir, "train_results.txt"), "w") as f:
             f.write(f"Model: {model_name}\n")
@@ -292,6 +271,28 @@ def main():
             )
             fig_roc.savefig(os.path.join(out_test, "ROC_curve.png"))
             plt.close(fig_roc)
+
+            from sklearn.metrics import roc_curve, auc
+            from scipy.io import savemat
+
+            # ---- EXPORT ROC DATA (patient-wise, training set) ----
+            y_true = pt_labels.detach().cpu().numpy().astype(int)
+            y_score = pt_probs.detach().cpu().numpy().astype(float)
+
+            fpr, tpr, thr = roc_curve(y_true, y_score)
+            roc_auc = auc(fpr, tpr)
+
+            savemat(
+                os.path.join(out_dir, "train_ROC_data.mat"),
+                {
+                    "fpr": fpr,
+                    "tpr": tpr,
+                    "thr": thr,
+                    "auc": np.array([roc_auc]),
+                    "y_true": y_true,
+                    "y_score": y_score,
+                }
+            )
 
             preds = (pt_probs >= CONST_THR).long()
 
